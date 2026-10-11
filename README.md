@@ -1,5 +1,6 @@
 # 🚀 Projet Machine Learning / Deep Learning
 
+<<<<<<< HEAD
 ## 👥 Membres de l'équipe
 - **Benjamin HIN**
 - **Alexandre**
