@@ -1,0 +1,23 @@
+# Données (ne jamais push les fichiers de données)
+data/*
+!data/.gitkeep
+
+# Python / Jupyter
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+
+# Environnements virtuels
+.venv/
+venv/
+ENV/
+env/
+
+# Fichiers système / OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
