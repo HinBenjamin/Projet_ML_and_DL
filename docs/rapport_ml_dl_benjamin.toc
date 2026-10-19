@@ -1,0 +1,28 @@
+\babel@toc {french}{}\relax 
+\contentsline {section}{\numberline {1}Synthèse et Caractérisation du Jeu de Données Brut}{2}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Volumétrie et Dimensions}{2}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}Organisation Initiale des Variables}{2}{subsection.1.2}%
+\contentsline {section}{\numberline {2}Architecture des Données Prêtes à l'Emploi (\textit {Data Engineering})}{3}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Partitionnement Stratifié Train / Test}{3}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Optimisation Technique : Le Format Parquet}{3}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}Rôle Fondamental des Métadonnées}{3}{subsection.2.3}%
+\contentsline {subsection}{\numberline {2.4}Structure Physique des Fichiers et Module de Chargement}{4}{subsection.2.4}%
+\contentsline {section}{\numberline {3}Défis et Verrous Méthodologiques}{4}{section.3}%
+\contentsline {section}{\numberline {4}Démarche Méthodologique en Machine Learning}{5}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Prétraitement et Sélection de Caractéristiques}{5}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Familles de Modèles Machine Learning}{5}{subsection.4.2}%
+\contentsline {section}{\numberline {5}Démarche Méthodologique en Deep Learning}{5}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Architectures de Réseaux de Neurones}{5}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Fonctions de Perte Adaptées au Déséquilibre}{6}{subsection.5.2}%
+\contentsline {section}{\numberline {6}Dispositif Expérimental et Protocole d'Évaluation}{6}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Stratégies de Découpage des Données (Cross-Validation)}{6}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}Métriques d'Évaluation Ciblées}{6}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}Optimisation du Seuil de Décision \& Hyperparamètres}{7}{subsection.6.3}%
+\contentsline {section}{\numberline {7}Interprétabilité et Validation Biologique}{7}{section.7}%
+\contentsline {section}{\numberline {8}Glossaire et Définitions Détaillées des Termes Techniques}{7}{section.8}%
+\contentsline {subsection}{\numberline {8.1}Génomique Bactérienne, Épidémiologie Moléculaire et AMR}{7}{subsection.8.1}%
+\contentsline {subsection}{\numberline {8.2}Modélisation Statistique, Machine Learning et Prétraitement}{10}{subsection.8.2}%
+\contentsline {subsection}{\numberline {8.3}Deep Learning et Architectures Tabulaires}{13}{subsection.8.3}%
+\contentsline {subsection}{\numberline {8.4}Métrologie, Stratégies d'Évaluation et Interprétabilité}{15}{subsection.8.4}%
+\contentsline {section}{\numberline {9}Planning Opérationnel des Expérimentations}{17}{section.9}%
+\contentsline {section}{\numberline {10}Références Bibliographiques (Format APA 7\textsuperscript {e} édition)}{18}{section.10}%
