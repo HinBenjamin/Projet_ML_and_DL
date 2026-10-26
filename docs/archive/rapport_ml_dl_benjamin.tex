@@ -1,0 +1,845 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[authoryear,round]{natbib}
+\usepackage[french]{babel}
+\usepackage{lmodern}
+\usepackage{geometry}
+\geometry{top=2.5cm, bottom=2.5cm, left=2.5cm, right=2.5cm}
+
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{tcolorbox}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{microtype}
+\usepackage{fancyhdr}
+\usepackage{url}
+
+% Configuration APA 7 pour la bibliographie (retrait suspendu de 1,27 cm / 0.5 in)
+\setlength{\bibhang}{1.27cm}
+\setlength{\bibsep}{0.6em}
+
+% Configuration des couleurs
+\definecolor{primary}{RGB}{31, 78, 121}
+\definecolor{secondary}{RGB}{41, 128, 185}
+\definecolor{accent}{RGB}{211, 47, 47}
+\definecolor{boxbg}{RGB}{245, 248, 252}
+\definecolor{warnbg}{RGB}{253, 243, 242}
+\definecolor{darkgray}{RGB}{60, 60, 60}
+\definecolor{defbg}{RGB}{250, 250, 252}
+
+% Configuration hyperref
+\hypersetup{
+    colorlinks=true,
+    linkcolor=primary,
+    citecolor=secondary,
+    urlcolor=secondary
+}
+
+% En-tête et pied de page
+\pagestyle{fancy}
+\fancyhf{}
+\setlength{\headheight}{14pt}
+\rhead{\textcolor{darkgray}{\small Projet ML/DL -- Prédiction AMR (\textit{E. coli})}}
+\lhead{\textcolor{darkgray}{\small Synthèse des Données, Dispositif Expérimental \& Glossaire}}
+\cfoot{\thepage}
+
+% Boîtes d'accentuation stylisées avec tcolorbox standard
+\newtcolorbox{infobox}[1][]{
+    colback=boxbg,
+    colframe=primary,
+    coltitle=white,
+    fonttitle=\bfseries,
+    title={#1},
+    arc=3mm
+}
+
+\newtcolorbox{warningbox}[1][]{
+    colback=warnbg,
+    colframe=accent,
+    coltitle=white,
+    fonttitle=\bfseries,
+    title={#1},
+    arc=3mm
+}
+
+\newtcolorbox{defbox}[1][]{
+    colback=defbg,
+    colframe=secondary,
+    coltitle=white,
+    fonttitle=\bfseries,
+    title={#1},
+    arc=2.5mm,
+    boxrule=0.8pt,
+    left=6pt,
+    right=6pt,
+    top=6pt,
+    bottom=6pt
+}
+
+\title{
+    \vspace{-1.5cm}
+    \textbf{\LARGE Prédiction de la Résistance à la Ciprofloxacine chez \textit{Escherichia coli} par Apprentissage Automatique et Profond}\\[0.3cm]
+    \large Synthèse des Données, Architecture Technique, Dispositif Expérimental\\
+    \& Glossaire Conceptuel Détaillé (Norme APA \texorpdfstring{7\textsuperscript{e}}{7e} éd.)
+}
+\author{\textbf{Benjamin HIN} \\ Master / Projet Machine Learning \& Deep Learning}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Ce document constitue une synthèse méthodologique, expérimentale et conceptuelle pour le projet de prédiction de la résistance aux antimicrobiens (AMR) chez la bactérie \textit{Escherichia coli} exposée à la ciprofloxacine. À partir du jeu de données pan-génomique (\texttt{ecoli\_ciprofloxacin.csv}), nous présentons la caractérisation fine des données ($N=5\,935$, $P=20\,735$), la nouvelle architecture de partitionnement optimisée en format Parquet (\texttt{data/splits/}), le rôle scientifique des métadonnées, les modèles de \textit{Machine Learning} et \textit{Deep Learning} retenus, ainsi que le protocole rigoureux de validation croisée et d'interprétabilité biologique. En outre, une section encyclopédique explicite les définitions formelles et opérationnelles de l'ensemble des termes techniques employés, avec leurs implications pour le projet et leurs sources canoniques référencées selon les normes bibliographiques de l'APA 7\textsuperscript{e} édition (American Psychological Association).
+\end{abstract}
+
+\tableofcontents
+\vspace{0.5cm}
+\hrule
+\vspace{0.5cm}
+
+% ==============================================================================
+\section{Synthèse et Caractérisation du Jeu de Données Brut}
+% ==============================================================================
+
+Le jeu de données étudié provient du profilage pan-génomique d'isolats cliniques et environnementaux d'\textit{Escherichia coli} \citep{tettelin2005genome,medini2005microbial}, associé au phénotype binaire de sensibilité/résistance à la ciprofloxacine, une fluoroquinolone de référence à large spectre \citep{aldred2014mechanism,hooper2015quinolone}. La résistance aux antimicrobiens (AMR) représente aujourd'hui une menace sanitaire mondiale majeure causant des millions de décès annuels \citep{murray2022global,who2024amr}, nécessitant le déploiement de modèles prédictifs rapides fondés sur le séquençage à haut débit \citep{anahtar2021applications,moradigaravand2018prediction}.
+
+\subsection{Volumétrie et Dimensions}
+
+\begin{itemize}[leftmargin=*, label=$\bullet$]
+    \item \textbf{Fichier source brut :} \texttt{data/processed/ecoli\_ciprofloxacin.csv} (taille brute : 247,5 Mo).
+    \item \textbf{Nombre total d'échantillons ($N$) :} $5\,935$ isolats bactériens uniques.
+    \item \textbf{Nombre total de colonnes ($P$) :} $20\,735$ attributs.
+    \item \textbf{Intégrité des données :} $0$ valeur manquante ($\text{NaN} = 0$), intégrité complète du tableau.
+\end{itemize}
+
+\subsection{Organisation Initiale des Variables}
+
+Le jeu de données se compose de :
+\begin{enumerate}
+    \item \textbf{Métadonnées et Variable Cible ($4$ colonnes) :}
+    \begin{itemize}
+        \item \texttt{sra} : Identifiant unique de séquençage NCBI Sequence Read Archive ($5\,935$ modalités uniques) \citep{leinonen2011sequence}.
+        \item \texttt{Genome.Name} : Nom d'assemblage taxonomique et identifiant d'isolat.
+        \item \texttt{mlst\_group} : Type de séquence multi-locus (\textit{Multi-Locus Sequence Typing}, 423 groupes identifiés) \citep{maiden1998multilocus}.
+        \item \texttt{y} : Statut de résistance binaire ($0 = \text{Sensible}$, $1 = \text{Résistant}$).
+    \end{itemize}
+
+    \item \textbf{Caractéristiques Génomiques ($20\,731$ colonnes) :}
+    \begin{itemize}
+        \item Gènes annotés (\texttt{LMHECDEF\_}) et clusters pan-génomiques homologues (\texttt{Cluster\_}).
+        \item Matrice binaire d'absence ($0$) ou présence ($1$) de gènes.
+        \item \textbf{Sparsité globale :} $94,62\%$ de zéros (moyenne de $1\,116$ gènes présents par isolat) \citep{hastie2015statistical}.
+    \end{itemize}
+\end{enumerate}
+
+\begin{table}[h!]
+\centering
+\caption{Distribution globale du phénotype $y$ (Ciprofloxacine)}
+\vspace{0.2cm}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Phénotype} & \textbf{Modalité ($y$)} & \textbf{Effectif ($N_c$)} & \textbf{Proportion (\%)} \\
+\midrule
+Sensible & $0$ & $4\,650$ & $78,35\%$ \\
+Résistant & $1$ & $1\,285$ & $21,65\%$ \\
+\midrule
+\textbf{Total} & -- & $\mathbf{5\,935}$ & $\mathbf{100,00\%}$ \\
+\bottomrule
+\end{tabular}
+\label{tab:target_distribution}
+\end{table}
+
+% ==============================================================================
+\section{Architecture des Données Prêtes à l'Emploi (\textit{Data Engineering})}
+% ==============================================================================
+
+Afin d'éviter de recharger et de retraiter un fichier CSV lourd de 247 Mo à chaque expérience, un pipeline de partitionnement et d'optimisation mémoire a été mis en place dans \texttt{data/splits/}.
+
+\subsection{Partitionnement Stratifié Train / Test}
+
+Le jeu a été découpé avec une graine fixe (\texttt{random\_state=42}) selon une stratification stricte sur la variable cible $y$ \citep{hastie2009elements} :
+
+\begin{table}[h!]
+\centering
+\small
+\caption{Répartition détaillée des jeux d'entraînement et de test}
+\vspace{0.2cm}
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Sous-ensemble} & \textbf{Sensibles ($y=0$)} & \textbf{Résistants ($y=1$)} & \textbf{Total isolats} & \textbf{Proportion} \\
+\midrule
+\textbf{Train set} & $3\,720$ ($78,35\%$) & $1\,028$ ($21,65\%$) & $\mathbf{4\,748}$ & $80,00\%$ \\
+\textbf{Test set} (Hold-out) & $930$ ($78,35\%$) & $257$ ($21,65\%$) & $\mathbf{1\,187}$ & $20,00\%$ \\
+\midrule
+\textbf{Total} & $\mathbf{4\,650}$ & $\mathbf{1\,285}$ & $\mathbf{5\,935}$ & $100,00\%$ \\
+\bottomrule
+\end{tabular}
+\label{tab:splits}
+\end{table}
+
+\subsection{Optimisation Technique : Le Format Parquet}
+
+\begin{itemize}[leftmargin=*, label=$\bullet$]
+    \item \textbf{Encodage des types :} Les $20\,731$ colonnes génomiques ont été converties de \texttt{int64} en \texttt{uint8}. La mémoire vive (RAM) requise pour charger la matrice est divisée par 8.
+    \item \textbf{Compression orientée colonne (Snappy) :} Grâce au format Apache Parquet \citep{vohra2016apache} :
+    \begin{itemize}
+        \item \texttt{X\_train.parquet} ne pèse que \textbf{28 Mo} (contre $\sim 200$ Mo en CSV brut).
+        \item \texttt{X\_test.parquet} ne pèse que \textbf{19 Mo}.
+        \item Temps de chargement en mémoire sous Python : \textbf{1,9 seconde} (contre 15 secondes pour le CSV).
+    \end{itemize}
+\end{itemize}
+
+\subsection{Rôle Fondamental des Métadonnées}
+
+Bien que les métadonnées ne soient pas fournies au modèle comme variables prédictives dans $\mathbf{X}$, elles remplissent quatre fonctions scientifiques capitales :
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Contrôle du biais de lignage clonal (\texttt{mlst\_group}) :}
+    Chez \textit{E. coli}, des souches appartenant au même clone (ex. clone pandémique ST131) partagent un fond génétique commun indépendamment de la résistance \citep{nicolaschanoine2014ecoli}. La métadonnée \texttt{mlst\_group} permet de tester la capacité du modèle à généraliser sur des clades bactériens inédits et d'éviter les corrélations trompeuses \citep{earle2016identifying,lees2016sequence}.
+    \item \textbf{Traçabilité et audit des faux négatifs (\texttt{sra}, \texttt{Genome.Name}) :}
+    En clinique, prédire sensible un isolat résistant est une erreur critique. L'identifiant SRA \citep{leinonen2011sequence} permet de remonter directement aux génomes mal classés pour analyser si l'erreur provient de mutations ponctuelles non capturées ou de mécanismes rares.
+    \item \textbf{Harmonisation des benchmarks d'équipe} (\texttt{fold\_stratified}, \texttt{fold\_group\_mlst}) :
+    Les plis de validation croisée sont pré-enregistrés dans \texttt{metadata\_train.parquet}. Benjamin, Alexandre et Baptiste évaluent ainsi tous leurs modèles sur exactement les mêmes sous-ensembles.
+    \item \textbf{Analyses de sous-groupes épidémiologiques :}
+    Permet de vérifier si les performances prédictives restent stables entre les clones épidémiques majeurs et les souches environnementales rares.
+\end{enumerate}
+
+\subsection{Structure Physique des Fichiers et Module de Chargement}
+
+L'organisation des fichiers dans le projet est la suivante :
+
+\begin{verbatim}
+Projet_ML_DL/
+|-- data/
+|   |-- processed/
+|   |   `-- ecoli_ciprofloxacin.csv     # Fichier complet brut (247 Mo)
+|   |-- splits/                         # Fichiers optimises prets a l'emploi
+|   |   |-- X_train.parquet             # 4 748 x 20 731 features (uint8)
+|   |   |-- y_train.parquet             # 4 748 labels cibles (int8)
+|   |   |-- metadata_train.parquet      # sra, mlst_group, folds de CV
+|   |   |-- X_test.parquet              # 1 187 x 20 731 features (uint8)
+|   |   |-- y_test.parquet              # 1 187 labels cibles (int8)
+|   |   `-- metadata_test.parquet       # sra, mlst_group
+|   `-- results/
+|       `-- predictions_template.csv    # Suivi comparatif des modeles
+`-- src/
+    `-- data_loader.py                  # Fonctions load_train() et load_test()
+\end{verbatim}
+
+Le chargement immédiat s'effectue en une ligne dans les notebooks :
+\begin{center}
+\texttt{X\_train, y\_train, meta\_train = load\_train()}
+\end{center}
+
+% ==============================================================================
+\section{Défis et Verrous Méthodologiques}
+% ==============================================================================
+
+\begin{infobox}[Verrous Clés du Projet]
+L'apprentissage statistique sur ce jeu de données présente trois verrous majeurs devant être impérativement traités dans le dispositif expérimental :
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Ultra-haute dimensionnalité ($p \gg n$) :} $20\,731$ variables pour $4\,748$ observations d'entraînement entraînent un risque majeur de surapprentissage (\textit{curse of dimensionality}) \citep{donoho2000highdim,bellman1957dynamic}.
+    \item \textbf{Déséquilibre de classe ($3,6 : 1$) :} Une prédiction naïve de la classe majoritaire produirait une exactitude (\textit{accuracy}) de $78,35\%$ mais une sensibilité nulle sur les résistants \citep{he2009learning}.
+    \item \textbf{Biais de structure phylogénétique (\textit{Clonal confounding}) :} Les bactéries apparentées (même groupe MLST) partagent de nombreux gènes par descendance commune indépendamment de la résistance \citep{earle2016identifying,moradigaravand2018prediction}.
+\end{enumerate}
+\end{infobox}
+
+% ==============================================================================
+\section{Démarche Méthodologique en Machine Learning}
+% ==============================================================================
+
+\subsection{Prétraitement et Sélection de Caractéristiques}
+
+Afin d'atténuer la dimensionnalité tout en préservant l'information biologique discriminante :
+\begin{itemize}[leftmargin=*, label=$\bullet$]
+    \item \textbf{Filtrage de variance (\textit{Variance Threshold}) :} Élimination des gènes quasi-invariants (présents chez $<0,5\%$ des isolats ou $>99,5\%$ des isolats).
+    \item \textbf{Sélection univariée supervisée :} Test d'indépendance du Chi-deux ($\chi^2$) sur les paires binaire-binaire $(\mathbf{x}_j, y)$ \citep{agresti2013categorical}.
+    \item \textbf{Pénalisation $L_1$ intégrée :} Utilisation de la régularisation Lasso pour induire une parcimonie (\textit{sparsity}) dans les coefficients \citep{tibshirani1996regression}.
+    \item \textbf{Réduction de dimension non-supervisée :} \textit{Truncated SVD} (adaptée aux matrices creuses) pour la création de méta-composantes latentes \citep{halko2011finding}.
+\end{itemize}
+
+\subsection{Familles de Modèles Machine Learning}
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Modèles Linéaires Régularisés :}
+    \begin{itemize}
+        \item \textit{Logistic Regression} pénalisée $L_1$ (Lasso), $L_2$ (Ridge) et ElasticNet avec pondération \texttt{class\_weight='balanced'} \citep{tibshirani1996regression,zou2005regularization}.
+        \item Fonction de perte avec pénalité ElasticNet :
+        \[
+        \mathcal{L}(\mathbf{w}, b) = -\frac{1}{N} \sum_{i=1}^N w_i \left[ y_i \log(\hat{p}_i) + (1-y_i) \log(1-\hat{p}_i) \right] + \lambda \left( \alpha \|\mathbf{w}\|_1 + \frac{1-\alpha}{2} \|\mathbf{w}\|_2^2 \right)
+        \]
+    \end{itemize}
+    \item \textbf{Machines à Vecteurs de Support (SVM) :}
+    \begin{itemize}
+        \item \textit{LinearSVC} et SVM à noyau RBF optimisé pour les marges maximales en grande dimension \citep{cortes1995support}.
+    \end{itemize}
+    \item \textbf{Forêts Aléatoires (\textit{Random Forest}) \& Extra-Trees :}
+    \begin{itemize}
+        \item Évaluation de l'importance des variables via le critère de Gini et la permutation importance \citep{breiman2001random}.
+    \end{itemize}
+    \item \textbf{Arbres de Décision Boostés (\textit{Gradient Boosting}) :}
+    \begin{itemize}
+        \item \textbf{LightGBM} \citep{ke2017lightgbm} et \textbf{XGBoost} \citep{chen2016xgboost} : modèles de référence grâce à leur vitesse sur matrices binaires creuses, leur gestion native du déséquilibre via \texttt{scale\_pos\_weight} ($3\,720 / 1\,028 \approx 3,62$), et leur régularisation poussée.
+    \end{itemize}
+\end{enumerate}
+
+% ==============================================================================
+\section{Démarche Méthodologique en Deep Learning}
+% ==============================================================================
+
+\subsection{Architectures de Réseaux de Neurones}
+
+\begin{itemize}[leftmargin=*, label=$\bullet$]
+    \item \textbf{Multi-Layer Perceptron (MLP) Régularisé \citep{goodfellow2016deep} :}
+    \begin{itemize}
+        \item Entrée : $p$ features génomiques (sélectionnées ou réduites).
+        \item Couches denses successives (ex. $512 \rightarrow 256 \rightarrow 64 \rightarrow 1$) avec activations non-linéaires ReLU \citep{nair2010rectified} ou GELU \citep{hendrycks2016gelu}.
+        \item Régularisation agressive : couches de \textit{Dropout} ($p=0.3 \text{ à } 0.5$) \citep{srivastava2014dropout}, \textit{Batch Normalization} \citep{ioffe2015batch} ou \textit{Layer Normalization} \citep{ba2016layer}, et \textit{Weight Decay} ($L_2$).
+    \end{itemize}
+
+    \item \textbf{Convolution 1D (1D-CNN) \citep{lecun1998gradient,kim2014convolutional} :}
+    \begin{itemize}
+        \item Exploitation de filtres convolutifs 1D locaux pour détecter des co-occurrences de gènes au sein d'opérons ou d'îlots génomiques de résistance.
+    \end{itemize}
+
+    \item \textbf{TabNet (Architecture à Attention Tabulaire) \citep{arik2021tabnet} :}
+    \begin{itemize}
+        \item Architecture dédiée aux données tabulaires intégrant une sélection séquentielle clairsemée des variables (\textit{sparse attention mechanism}), favorisant l'explicabilité intrinsèque.
+    \end{itemize}
+\end{itemize}
+
+\subsection{Fonctions de Perte Adaptées au Déséquilibre}
+
+Pour pénaliser davantage les erreurs commises sur la classe minoritaire (résistants) :
+\begin{itemize}[leftmargin=*, label=$\bullet$]
+    \item \textbf{Weighted Binary Cross-Entropy \citep{he2009learning} :}
+    \[
+    \mathcal{L}_{\text{WBCE}} = -\frac{1}{N}\sum_{i=1}^N \left[ \alpha \cdot y_i \log(\hat{p}_i) + (1-y_i) \log(1-\hat{p}_i) \right], \quad \alpha = \frac{N_{\text{sensibles}}}{N_{\text{résistants}}} \approx 3,62
+    \]
+    \item \textbf{Focal Loss \citep{lin2017focal} :} atténue l'influence des exemples faciles (majoritaires bien classés) pour concentrer le gradient sur les cas difficiles :
+    \[
+    \mathcal{L}_{\text{Focal}} = -\frac{1}{N}\sum_{i=1}^N \alpha_t (1 - p_t)^\gamma \log(p_t), \quad \text{avec } \gamma \in [1, 3]
+    \]
+\end{itemize}
+
+% ==============================================================================
+\section{Dispositif Expérimental et Protocole d'Évaluation}
+% ==============================================================================
+
+\subsection{Stratégies de Découpage des Données (Cross-Validation)}
+
+\begin{warningbox}[Contrôle Indispensable du Biais Phylogénétique]
+Un découpage purement aléatoire (\textit{Random Split}) peut surestimer artificiellement les performances : un modèle peut mémoriser les gènes propres au clone ST131 sans apprendre les véritables déterminants moléculaires de la résistance \citep{earle2016identifying,lees2016sequence}.
+\end{warningbox}
+
+Deux dispositifs de validation croisée sont mis en place en parallèle sur le jeu d'entraînement :
+\begin{enumerate}
+    \item \textbf{Validation Croisée Stratifiée Standard (\textit{Stratified 5-Fold CV}) \citep{hastie2009elements} :}
+    \begin{itemize}
+        \item Accessible directement via \texttt{meta\_train['fold\_stratified']}.
+        \item Conserve le ratio $78\% / 22\%$ dans chaque pli.
+        \item Évalue les performances dans l'hypothèse d'échantillons identiquement distribués (i.i.d.).
+    \end{itemize}
+    \item \textbf{Validation Croisée par Groupes MLST (\textit{GroupKFold par mlst\_group}) :}
+    \begin{itemize}
+        \item Accessible directement via \texttt{meta\_train['fold\_group\_mlst']}.
+        \item Aucun groupe MLST présent dans le jeu d'entraînement d'un pli ne se retrouve dans la validation.
+        \item Mesure la capacité de généralisation réelle sur des souches phylogénétiquement distantes et non vues \citep{moradigaravand2018prediction}.
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Métriques d'Évaluation Ciblées}
+
+Les métriques traditionnelles comme l'\textit{Accuracy} étant trompeuses sur données déséquilibrées \citep{he2009learning}, nous retenons :
+\begin{itemize}[leftmargin=*, label=$\bullet$]
+    \item \textbf{PR-AUC (Precision-Recall AUC / AUPRC) :} Métrique reine pour évaluer la capacité à détecter les résistants sans faux positifs excessifs en présence de déséquilibre \citep{davis2006relationship,saito2015precision}.
+    \item \textbf{ROC-AUC :} Capacité globale de discrimination entre les deux distributions \citep{fawcett2006introduction}.
+    \item \textbf{$F_1$-Score (Minoritaire et Macro) :} Moyenne harmonique de la précision et du rappel sur la classe $y=1$ \citep{powers2011evaluation}.
+    \item \textbf{Balanced Accuracy :} Moyenne arithmétique de la sensibilité (taux de vrais positifs) et de la spécificité (taux de vrais négatifs) \citep{brodersen2010balanced}.
+    \item \textbf{Matrice de Confusion :} Analyse exhaustive des faux négatifs (critiques sur le plan médical).
+\end{itemize}
+
+\subsection{Optimisation du Seuil de Décision \& Hyperparamètres}
+
+\begin{itemize}[leftmargin=*, label=$\bullet$]
+    \item \textbf{Tuning d'hyperparamètres :} Optimisation bayésienne TPE (\textit{Tree-structured Parzen Estimator}) via la bibliothèque \texttt{Optuna} \citep{bergstra2011algorithms,akiba2019optuna}.
+    \item \textbf{Calibration des probabilités \& Seuil optimal :} Ajustement du seuil de décision $\tau$ (par défaut $\tau = 0.5$) via l'indice $J$ de Youden ($J = \text{Sensibilité} + \text{Spécificité} - 1$) \citep{youden1950index} ou la maximisation du $F_1$-score sur le jeu de validation.
+\end{itemize}
+
+% ==============================================================================
+\section{Interprétabilité et Validation Biologique}
+% ==============================================================================
+
+L'objectif final ne se limite pas à la prédiction brute mais inclut la découverte et validation des biomarqueurs génétiques associés à la résistance à la ciprofloxacine :
+\begin{itemize}[leftmargin=*, label=$\bullet$]
+    \item \textbf{Valeurs de SHAP (\textit{SHapley Additive exPlanations}) :} Attribution de l'impact individuel de chaque feature génomique sur le score de résistance basée sur la théorie des jeux \citep{lundberg2017unified,lundberg2020local}.
+    \item \textbf{Confrontation aux cibles connues de la ciprofloxacine :}
+    \begin{itemize}
+        \item Mutations ou gènes des topo-isomérases : ADN gyrase (\textit{gyrA}, \textit{gyrB}) et topo-isomérase IV (\textit{parC}, \textit{parE}) au sein des régions QRDR \citep{hopkins2005mechanisms,aldred2014mechanism}.
+        \item Systèmes de pompes d'efflux multidrogues : complexe tripartite \textit{acrAB-tolC}, régulateurs transcriptionnels \textit{marA}, \textit{soxS} \citep{nikaido2012efflux,du2018multidrug}.
+        \item Gènes plasmidiques de résistance aux quinolones (PMQR) : \textit{qnrA}, \textit{qnrB}, \textit{qnrS}, \textit{aac(6')-Ib-cr} \citep{jacoby2005mechanisms,rodriguezmartinez2016mechanisms}.
+    \end{itemize}
+\end{itemize}
+
+% ==============================================================================
+\section{Glossaire et Définitions Détaillées des Termes Techniques}
+% ==============================================================================
+
+Cette section présente une revue encyclopédique approfondie des concepts clés manipulés tout au long du projet. Pour chaque notion, nous détaillons sa définition formelle, sa justification microbiologique ou mathématique, son implication directe dans notre pipeline expérimental, et ses références académiques au format APA 7\textsuperscript{e} édition.
+
+\subsection{Génomique Bactérienne, Épidémiologie Moléculaire et AMR}
+
+\begin{defbox}[Résistance aux Antimicrobiens (AMR)]
+\textbf{Définition :} Phénomène biologique par lequel un micro-organisme (bactérie, virus, champignon ou parasite) acquiert la capacité de survivre ou proliférer en présence d'une concentration d'agent antimicrobien qui était auparavant inhibitrice ou létale \citep{who2024amr}. Cliniquement, un isolat est classé résistant lorsque sa Concentration Minimale Inhibitrice (CMI) dépasse les seuils critiques (\textit{breakpoints}) établis par les comités de standardisation (EUCAST, CLSI).\\
+\textbf{Rôle dans le projet :} L'AMR constitue la cible binaire $y \in \{0, 1\}$ du projet. L'identification prédictive de cette résistance directement par apprentissage automatique à partir du génome permet de réduire le délai diagnostique de 48 heures (antibiogramme phénotypique standard) à quelques minutes \citep{anahtar2021applications,moradigaravand2018prediction}.\\
+\textbf{Source de référence :} \citet{murray2022global} ; \citet{who2024amr}.
+\end{defbox}
+
+\begin{defbox}[Ciprofloxacine \& Famille des Fluoroquinolones]
+\textbf{Définition :} Antibiotique bactéricide de synthèse à large spectre appartenant à la deuxième génération des fluoroquinolones. Son mode d'action repose sur l'inhibition de deux enzymes essentielles du métabolisme de l'ADN bactérien : l'ADN gyrase (tétramère $\text{GyrA}_2\text{GyrB}_2$) et la topo-isomérase IV ($\text{ParC}_2\text{ParE}_2$). En stabilisant les complexes enzymatiques clivables liés à l'ADN double-brin, la ciprofloxacine provoque l'accumulation de cassures double-brin létales et bloque la fourche de réplication \citep{aldred2014mechanism,hooper2015quinolone}.\\
+\textbf{Rôle dans le projet :} Molécule modèle antimicrobienne évaluée dans le jeu de données pour \textit{E. coli}. Elle sert d'étalon clinique pour évaluer la capacité des algorithmes à retrouver à la fois les altérations de cibles enzymatiques et les mécanismes d'efflux.\\
+\textbf{Source de référence :} \citet{aldred2014mechanism} ; \citet{hooper2015quinolone}.
+\end{defbox}
+
+\begin{defbox}[Région Déterminant la Résistance aux Quinolones (QRDR)]
+\textbf{Définition :} Portion conservée des gènes codant pour les sous-unités enzymatiques de l'ADN gyrase (\textit{gyrA}, \textit{gyrB}) et de la topo-isomérase IV (\textit{parC}, \textit{parE}) où se concentrent les mutations ponctuelles conférant un haut niveau de résistance aux fluoroquinolones \citep{hopkins2005mechanisms}. Chez \textit{E. coli}, les substitutions canoniques dans GyrA (Ser83Leu, Asp87Asn) et ParC (Ser80Ile) modifient la poche de liaison du médicament et diminuent son affinité stérique \citep{aldred2014mechanism}.\\
+\textbf{Rôle dans le projet :} Constitue le biomarqueur biologique majeur attendu dans les modèles d'interprétabilité (SHAP). Les clusters pan-génomiques associés à ces mutations alléliques doivent ressortir en tête de classement des importances de features.\\
+\textbf{Source de référence :} \citet{hopkins2005mechanisms} ; \citet{hooper2015quinolone}.
+\end{defbox}
+
+\begin{defbox}[Résistance Plasmidique aux Quinolones (PMQR)]
+\textbf{Définition :} Déterminants génétiques de résistance véhiculés par des éléments génétiques mobiles transférables (plasmides, intégrons). Ils englobent : (i) les protéines répétées pentapeptidiques de la famille Qnr (\textit{qnrA}, \textit{qnrB}, \textit{qnrS}) qui protègent physiquement la gyrase de l'inhibition, (ii) l'enzyme modificatrice \textit{aac(6')-Ib-cr} qui acétyle la molécule de ciprofloxacine, et (iii) des pompes d'efflux spécifiques médiées par plasmide comme QepA et OqxAB \citep{jacoby2005mechanisms,rodriguezmartinez2016mechanisms}.\\
+\textbf{Rôle dans le projet :} Les gènes PMQR confèrent un niveau bas de résistance facilitant l'émergence secondaire de mutations chromosomiques. Leur détection directe dans la matrice pan-génomique binaire ($X_{ij}=1$) fournit un signal prédictif hautement informatif.\\
+\textbf{Source de référence :} \citet{jacoby2005mechanisms} ; \citet{rodriguezmartinez2016mechanisms}.
+\end{defbox}
+
+\begin{defbox}[Systèmes de Pompes d'Efflux Multidrogues (AcrAB-TolC)]
+\textbf{Définition :} Complexes protéiques tripartites transmembranaires appartenant à la superfamille RND (\textit{Resistance-Nodulation-Division}) qui expulsent activement les composés cytotoxiques et antibiotiques hors du cytoplasme et de l'espace périplasmique vers le milieu extérieur, en utilisant la force proton-motrice \citep{du2018multidrug,nikaido2012efflux}. La surexpression de ce système est souvent régulée par des mutations dans les régulateurs globaux \textit{marA}, \textit{soxS} ou le répresseur \textit{marR}.\\
+\textbf{Rôle dans le projet :} Permet de corréler la présence ou l'altération des opérons de régulation avec le profil de résistance modérée ou multi-résistante.\\
+\textbf{Source de référence :} \citet{nikaido2012efflux} ; \citet{du2018multidrug}.
+\end{defbox}
+
+\begin{defbox}[Pan-génome Bactérien (\textit{Core} vs \textit{Accessory Genome})]
+\textbf{Définition :} Ensemble total de tous les gènes observés au sein d'une espèce bactérienne donnée \citep{tettelin2005genome}. Il est classiquement divisé en :
+\begin{itemize}[leftmargin=*, label=$\bullet$]
+    \item \textbf{Génome cœur (\textit{Core genome}) :} Gènes ubiquitaires présents chez la quasi-totalité des isolats ($\ge 95\% \text{ à } 99\%$), assurant les fonctions métaboliques basales et la machinerie réplicative.
+    \item \textbf{Génome accessoire (\textit{Accessory / Dispensable genome}) :} Gènes variables et facultatifs présents uniquement chez un sous-ensemble d'isolats, souvent acquis par transfert horizontal de gènes (îlots de pathogénicité, prophages, plasmides de résistance) \citep{medini2005microbial}.
+\end{itemize}
+\textbf{Rôle dans le projet :} Le tableau de features $X$ ($P=20\,731$ colonnes) est une projection du pan-génome d'\textit{E. coli}. La très forte proportion de gènes accessoires explique la grande dimensionnalité et la sparsité du jeu de données.\\
+\textbf{Source de référence :} \citet{tettelin2005genome} ; \citet{medini2005microbial}.
+\end{defbox}
+
+\begin{defbox}[Typage de Séquences Multi-Locus (MLST) \& Clones Épidémiques]
+\textbf{Définition :} Méthode standardisée de caractérisation génotypique des micro-organismes fondée sur le séquençage et le profil alléliques d'un jeu prédéfini de sept gènes de ménage essentiels (\textit{adk, fumC, gyrB, icd, mdh, purA, recA} chez \textit{E. coli}) \citep{maiden1998multilocus}. La combinaison unique de ces 7 allèles définit un \textit{Sequence Type} (ST). Certains ST, notamment le clone épidémique pandémique ST131, sont mondialement connus pour leur virulence et leur multi-résistance aux antibiotiques \citep{nicolaschanoine2014ecoli}.\\
+\textbf{Rôle dans le projet :} Utilisé dans la colonne \texttt{mlst\_group} comme variable de partitionnement de groupes (\textit{GroupKFold}) afin d'évaluer la généralisation des modèles sur des lignées bactériennes distinctes.\\
+\textbf{Source de référence :} \citet{maiden1998multilocus} ; \citet{nicolaschanoine2014ecoli}.
+\end{defbox}
+
+\begin{defbox}[Biais de Confusion Phylogénétique (\textit{Clonal Confounding})]
+\textbf{Définition :} Biais statistique et évolutif intervenant lorsqu'une corrélation apparente entre une mutation ou un gène et le phénotype d'intérêt (la résistance) découle simplement de la descendance commune au sein d'un sous-arbre phylogénétique clonal, plutôt que d'une relation causale fonctionnelle \citep{earle2016identifying,lees2016sequence}.\\
+\textbf{Rôle dans le projet :} Risque majeur identifié dans la Section 3. Sans validation croisée par groupes (\textit{GroupKFold}), les modèles de ML risqueraient d'apprendre des biomarqueurs passagers (\textit{lineage markers}) spécifiques d'un ST plutôt que de vrais déterminants de l'AMR.\\
+\textbf{Source de référence :} \citet{earle2016identifying} ; \citet{lees2016sequence}.
+\end{defbox}
+
+\begin{defbox}[Sequence Read Archive (NCBI SRA)]
+\textbf{Définition :} Entrepôt de données international public hébergé par le National Center for Biotechnology Information (NCBI) au sein du consortium INSDC. Il archive les fichiers de séquençage brut (\texttt{.fastq}, lectures courtes et longues) issus de plateformes NGS (Illumina, Oxford Nanopore, PacBio) \citep{leinonen2011sequence}.\\
+\textbf{Rôle dans le projet :} Les identifiants \texttt{sra} (ex. ERR, SRR) fournissent la traçabilité des données brutes et permettent de réanalyser les souches mal classées (faux négatifs et faux positifs).\\
+\textbf{Source de référence :} \citet{leinonen2011sequence}.
+\end{defbox}
+
+\subsection{Modélisation Statistique, Machine Learning et Prétraitement}
+
+\begin{defbox}[Fléau de la Haute Dimensionnalité ($p \gg n$)]
+\textbf{Définition :} Phénomène théorique et pratique survenant lorsque l'espace géométrique des variables ($p$) est d'un ordre de grandeur nettement supérieur à la taille de l'échantillon d'entraînement ($n$) \citep{donoho2000highdim,bellman1957dynamic}. Dans un tel espace, la densité des points tend vers zéro, les distances euclidiennes entre observations deviennent presque indiscernables, et le nombre de degrés de liberté excessif conduit inévitablement au surapprentissage (\textit{overfitting}) si des mécanismes stricts de régularisation ou de réduction ne sont pas déployés.\\
+\textbf{Rôle dans le projet :} Notre dataset comprend $P=20\,731$ variables pour $N=4\,748$ isolats d'entraînement. C'est le défi mathématique central justifiant la sélection univariée, les pénalisations Lasso/ElasticNet et les mécanismes de régularisation en Deep Learning.\\
+\textbf{Source de référence :} \citet{bellman1957dynamic} ; \citet{donoho2000highdim}.
+\end{defbox}
+
+\begin{defbox}[Sparsité Matricielle (\textit{Matrix Sparsity})]
+\textbf{Définition :} Propriété structurelle d'une matrice dans laquelle une immense majorité des coefficients sont nuls ($X_{ij}=0$) \citep{hastie2015statistical}. Le degré de sparsité s'exprime comme :
+\[
+\text{Sparsité} = 1 - \frac{\text{Nombre d'éléments non nuls}}{N \times P}
+\]
+\textbf{Rôle dans le projet :} La matrice pan-génomique binaire présente $94,62\%$ de zéros. L'exploitation de structures clairsemées (\textit{sparse matrices} scipy, Parquet, algorithmes optimisés comme LightGBM et Truncated SVD) réduit drastiquement la consommation de RAM et le temps de calcul.\\
+\textbf{Source de référence :} \citet{hastie2015statistical}.
+\end{defbox}
+
+\begin{defbox}[Déséquilibre de Classe (\textit{Class Imbalance})]
+\textbf{Définition :} Situation d'apprentissage supervisé dans laquelle les classes de la variable cible ne sont pas représentées de manière équitable \citep{he2009learning}. Un modèle entraîné avec une fonction de perte standard sur de telles données a tendance à favoriser la classe majoritaire, ce qui entraîne une exactitude globale faussement élevée mais une détection médiocre de la classe minoritaire.\\
+\textbf{Rôle dans le projet :} Le ratio de $78,35\%$ sensibles ($y=0$) pour $21,65\%$ résistants ($y=1$) impose l'utilisation de poids de classe (\texttt{class\_weight='balanced'}, \texttt{scale\_pos\_weight=3.62}), de métriques dédiées (PR-AUC, Balanced Accuracy) et de fonctions de perte adaptées (Focal Loss).\\
+\textbf{Source de référence :} \citet{he2009learning}.
+\end{defbox}
+
+\begin{defbox}[Format Apache Parquet \& Compression Snappy]
+\textbf{Définition :} Format de fichier de données open-source orienté colonnes (\textit{columnar storage}), conçu pour un stockage compact et des lectures rapides et partielles dans les pipelines de calcul distribué ou d'analyse vectorisée \citep{vohra2016apache}. Couplé à l'algorithme de compression Snappy (développé par Google), il offre un compromis optimal entre vitesse de décompression et taux de compression sans surcharge CPU.\\
+\textbf{Rôle dans le projet :} A permis de diviser la taille des jeux d'entraînement par 7 (de 200 Mo à 28 Mo) et de réduire le temps de chargement en Python à moins de 2 secondes.\\
+\textbf{Source de référence :} \citet{vohra2016apache}.
+\end{defbox}
+
+\begin{defbox}[Test d'Indépendance du Chi-deux ($\chi^2$)]
+\textbf{Définition :} Test d'hypothèse statistique non-paramétrique mesurant l'écart entre les fréquences observées dans un tableau de contingence $2 \times 2$ et les fréquences théoriques attendues sous l'hypothèse nulle ($H_0$) d'indépendance stochastique \citep{agresti2013categorical} :
+\[
+\chi^2 = \sum_{i,j} \frac{(O_{ij} - E_{ij})^2}{E_{ij}}
+\]
+\textbf{Rôle dans le projet :} Utilisé comme critère de sélection univariée rapide pour classer les $20\,731$ gènes binaires selon leur degré d'association statistique avec le phénotype de résistance binaire $y$.\\
+\textbf{Source de référence :} \citet{agresti2013categorical}.
+\end{defbox}
+
+\begin{defbox}[{Régularisations $L_1$ (Lasso), $L_2$ (Ridge) et ElasticNet}]
+\textbf{Définition :} Techniques de pénalisation mathématique ajoutées à la fonction de coût d'un modèle linéaire ou logistique pour borner la norme du vecteur de paramètres $\mathbf{w}$ \citep{tibshirani1996regression,zou2005regularization} :
+\begin{itemize}[leftmargin=*, label=$\bullet$]
+    \item \textbf{Lasso ($L_1$, \citet{tibshirani1996regression}) :} Pénalité $\lambda \|\mathbf{w}\|_1$. En raison de la géométrie de la boule $L_1$ présentant des sommets sur les axes, elle annule rigoureusement certains coefficients, opérant une sélection automatique de variables.
+    \item \textbf{Ridge ($L_2$) :} Pénalité $\frac{\lambda}{2} \|\mathbf{w}\|_2^2$. Réduit la magnitude des poids sans les annuler, particulièrement efficace face aux variables collinéaires.
+    \item \textbf{ElasticNet (\citet{zou2005regularization}) :} Combinaison convexe $\lambda \left( \alpha \|\mathbf{w}\|_1 + \frac{1-\alpha}{2} \|\mathbf{w}\|_2^2 \right)$ conciliant la parcimonie du Lasso et la stabilité du Ridge en présence de groupes de variables corrélées.
+\end{itemize}
+\textbf{Rôle dans le projet :} Forme le socle de notre régression logistique régularisée pour contrer le surapprentissage dû au ratio $p \gg n$.\\
+\textbf{Source de référence :} \citet{tibshirani1996regression} ; \citet{zou2005regularization}.
+\end{defbox}
+
+\begin{defbox}[SVD Troncée (\textit{Truncated Singular Value Decomposition})]
+\textbf{Définition :} Technique d'algèbre linéaire factorisant une matrice de données $X \in \mathbb{R}^{n \times p}$ sous la forme approximée $X \approx U_k \Sigma_k V_k^T$ en ne conservant que les $k$ plus grandes valeurs singulières ($k \ll \min(n, p)$) \citep{halko2011finding}. Contrairement à l'ACP standard, la SVD tronquée n'effectue pas de centrage préalable sur les colonnes, préservant ainsi intégralement la structure creuse (\textit{sparsity}) de la matrice.\\
+\textbf{Rôle dans le projet :} Permet de condenser les $20\,731$ variables génomiques en 50 à 100 composantes latentes denses pour alimenter des modèles non-linéaires ou visualiser l'espace d'états sans saturer la mémoire vive.\\
+\textbf{Source de référence :} \citet{halko2011finding}.
+\end{defbox}
+
+\begin{defbox}[Machines à Vecteurs de Support (SVM)]
+\textbf{Définition :} Algorithme d'apprentissage géométrique supervisé visant à trouver l'hyperplan optimal séparant deux classes dans l'espace des caractéristiques en maximisant la marge géométrique (distance entre l'hyperplan et les vecteurs de support les plus proches) \citep{cortes1995support}. L'application de l'astuce du noyau (\textit{kernel trick}), telle que la fonction de base radiale gaussienne (RBF) $K(\mathbf{x}, \mathbf{x}') = \exp(-\gamma \|\mathbf{x} - \mathbf{x}'\|^2)$, permet de projeter implicitement les données dans un espace de Hilbert de dimension infinie pour séparer des données non linéairement séparables.\\
+\textbf{Rôle dans le projet :} Évalué en version linéaire (\textit{LinearSVC}) et noyau RBF pour tester les frontières de décision à marge maximale en haute dimension.\\
+\textbf{Source de référence :} \citet{cortes1995support}.
+\end{defbox}
+
+\begin{defbox}[Forêts Aléatoires (\textit{Random Forests})]
+\textbf{Définition :} Méthode ensembliste d'apprentissage basée sur l'agrégation de multiples arbres de décision (\textit{Classification and Regression Trees}) \citep{breiman2001random}. Elle combine deux principes majeurs de décorrélation :
+\begin{itemize}[leftmargin=*, label=$\bullet$]
+    \item \textbf{Bagging (\textit{Bootstrap Aggregating}) :} Chaque arbre est entraîné sur un échantillon tiré avec remise à partir du jeu de données d'entraînement.
+    \item \textbf{Sous-espace aléatoire (\textit{Random Subspace}) :} À chaque nœud d'un arbre, la division optimale est sélectionnée parmi un sous-ensemble aléatoire de $m \approx \sqrt{p}$ variables, réduisant considérablement la variance globale du prédicteur agrégé.
+\end{itemize}
+\textbf{Rôle dans le projet :} Modèle de référence non-linéaire fournissant une estimation intrinsèque de l'importance des gènes via la diminution d'impureté de Gini.\\
+\textbf{Source de référence :} \citet{breiman2001random}.
+\end{defbox}
+
+\begin{defbox}[Arbres de Décision Boostés (XGBoost \& LightGBM)]
+\textbf{Définition :} Algorithmes de \textit{Gradient Tree Boosting} qui construisent itérativement un ensemble d'arbres de décision où chaque nouvel arbre est ajusté pour prédire le résidu (gradient négatif de la fonction de perte) des modèles précédents \citep{chen2016xgboost,ke2017lightgbm}.
+\begin{itemize}[leftmargin=*, label=$\bullet$]
+    \item \textbf{XGBoost (\citet{chen2016xgboost}) :} Intègre une régularisation de second ordre (approximation de Taylor) sur la structure des feuilles et gère nativement les valeurs manquantes et clairsemées.
+    \item \textbf{LightGBM (\citet{ke2017lightgbm}) :} Optimise le boosting grâce au découpage par feuille (\textit{leaf-wise split}) et au regroupement d'histogrammes (\textit{Exclusive Feature Bundling} et \textit{Gradient-based One-Side Sampling}), offrant une vitesse d'exécution accrue sur grands jeux de données.
+\end{itemize}
+\textbf{Rôle dans le projet :} Piliers expérimentaux du projet garantissant un compromis performance / vitesse d'entraînement supérieur sur matrices binaires creuses.\\
+\textbf{Source de référence :} \citet{chen2016xgboost} ; \citet{ke2017lightgbm}.
+\end{defbox}
+
+\subsection{Deep Learning et Architectures Tabulaires}
+
+\begin{defbox}[Perceptron Multi-Couches (MLP)]
+\textbf{Définition :} Architecture fondamentale de réseau de neurones artificiels à propagation avant (\textit{feedforward neural network}) organisée en couches successives de neurones entièrement connectés (\textit{dense / fully-connected layers}) \citep{goodfellow2016deep}. La transformation d'une couche s'écrit $\mathbf{h}^{(l)} = \sigma\left(\mathbf{W}^{(l)} \mathbf{h}^{(l-1)} + \mathbf{b}^{(l)}\right)$, où $\mathbf{W}^{(l)}$ est la matrice de poids, $\mathbf{b}^{(l)}$ le biais, et $\sigma(\cdot)$ une fonction d'activation non-linéaire.\\
+\textbf{Rôle dans le projet :} Architecture de base du volet Deep Learning, entraînée sous PyTorch avec régularisation poussée.\\
+\textbf{Source de référence :} \citet{goodfellow2016deep}.
+\end{defbox}
+
+\begin{defbox}[Fonctions d'Activation : ReLU et GELU]
+\textbf{Définition :} Fonctions mathématiques introduisant des non-linéarités indispensables au sein des réseaux de neurones :
+\begin{itemize}[leftmargin=*, label=$\bullet$]
+    \item \textbf{ReLU (\textit{Rectified Linear Unit}, \citet{nair2010rectified}) :} $\text{ReLU}(x) = \max(0, x)$. Fonction par morceaux simple dont la dérivée est constante ($1$) pour $x > 0$, évitant l'évanouissement du gradient (\textit{vanishing gradient}).
+    \item \textbf{GELU (\textit{Gaussian Error Linear Unit}, \citet{hendrycks2016gelu}) :} $\text{GELU}(x) = x \cdot \Phi(x) = x \cdot P(X \le x)$ où $X \sim \mathcal{N}(0, 1)$. Elle pondère continûment l'entrée par la fonction de répartition gaussienne, permettant une transition douce et probabiliste favorable à la généralisation.
+\end{itemize}
+\textbf{Rôle dans le projet :} Comparées dans le MLP pour optimiser la dynamique de convergence des gradients sur features binaires.\\
+\textbf{Source de référence :} \citet{nair2010rectified} ; \citet{hendrycks2016gelu}.
+\end{defbox}
+
+\begin{defbox}[Dropout]
+\textbf{Définition :} Méthode de régularisation stochastique dans laquelle chaque unité d'un réseau de neurones (et ses connexions associées) est temporairement exclue du calcul avec une probabilité $p$ fixée (ex. $p=0.3$) à chaque étape de la rétropropagation lors de l'entraînement \citep{srivastava2014dropout}. Cela empêche les neurones de développer des co-adaptations complexes et force le réseau à apprendre des représentations internes redondantes et robustes.\\
+\textbf{Rôle dans le projet :} Élément clé de la régularisation pour empêcher le surapprentissage massif du MLP confronté à plus de $20\,000$ variables.\\
+\textbf{Source de référence :} \citet{srivastava2014dropout}.
+\end{defbox}
+
+\begin{defbox}[Normalisation de Couches (Batch \& Layer Normalization)]
+\textbf{Définition :} Procédés algorithmiques normalisant la distribution des activations internes des couches cachées au cours de l'entraînement pour stabiliser l'apprentissage et accélérer la convergence \citep{ioffe2015batch,ba2016layer} :
+\begin{itemize}[leftmargin=*, label=$\bullet$]
+    \item \textbf{Batch Normalization (\citet{ioffe2015batch}) :} Normalise chaque caractéristique à travers la dimension du mini-lot (\textit{mini-batch}).
+    \item \textbf{Layer Normalization (\citet{ba2016layer}) :} Normalise l'ensemble des caractéristiques pour chaque exemple indépendamment des autres éléments du lot.
+\end{itemize}
+\textbf{Rôle dans le projet :} Stabilise le conditionnement numérique des réseaux denses et accélère l'optimisation par descente de gradient stochastique (AdamW).\\
+\textbf{Source de référence :} \citet{ioffe2015batch} ; \citet{ba2016layer}.
+\end{defbox}
+
+\begin{defbox}[Réseaux Convolutifs 1D (1D-CNN)]
+\textbf{Définition :} Architecture de réseau de neurones appliquant des opérations de convolution discrète 1D (filtres glissants de taille $k$) le long d'une dimension ordonnée \citep{lecun1998gradient,kim2014convolutional}. Elle extrait des caractéristiques locales invariantes par translation à travers un mécanisme de partage de poids (\textit{weight sharing}).\\
+\textbf{Rôle dans le projet :} Utilisé pour tester si des motifs locaux d'adjacence ou de co-occurrence de gènes (opérons bactériens, îlots génomiques de résistance) peuvent être détectés automatiquement.\\
+\textbf{Source de référence :} \citet{lecun1998gradient} ; \citet{kim2014convolutional}.
+\end{defbox}
+
+\begin{defbox}[Architecture TabNet]
+\textbf{Définition :} Architecture de Deep Learning spécifiquement conçue pour les données tabulaires par les chercheurs de Google Cloud AI \citep{arik2021tabnet}. TabNet utilise un transformateur d'attention séquentielle (\textit{sequential attention mechanism}) pour sélectionner les caractéristiques les plus saillantes à chaque étape de décision à l'aide de masques clairsemés contraints par la fonction Sparsemax, alliant la puissance des représentations profondes à l'interprétabilité pas-à-pas des arbres de décision.\\
+\textbf{Rôle dans le projet :} Modèle de Deep Learning avancé testé sur le tableau pan-génomique pour fournir à la fois des prédictions compétitives et des masques d'attention interprétables sur les gènes cruciaux.\\
+\textbf{Source de référence :} \citet{arik2021tabnet}.
+\end{defbox}
+
+\begin{defbox}[Focal Loss]
+\textbf{Définition :} Fonction de perte formulée initialement pour la détection d'objets avec fort déséquilibre fond/cible \citep{lin2017focal}. Elle remodèle la fonction de cross-entropie binaire standard en introduisant un terme de modulation polynomial $(1 - p_t)^\gamma$ :
+\[
+\mathcal{L}_{\text{Focal}}(p_t) = -\alpha_t (1 - p_t)^\gamma \log(p_t)
+\]
+où $p_t$ est la probabilité estimée de la vraie classe, $\alpha_t$ un facteur d'équilibrage de classe, et $\gamma \ge 0$ le paramètre de focalisation. Lorsque $\gamma > 0$, la perte associée aux exemples bien classifiés ($p_t \approx 1$) est fortement écrasée, concentrant le gradient sur les exemples rares ou difficiles.\\
+\textbf{Rôle dans le projet :} Empêche le modèle de sur-apprendre les isolats sensibles majoritaires et oblige le réseau à se concentrer sur les isolats résistants ambigus.\\
+\textbf{Source de référence :} \citet{lin2017focal}.
+\end{defbox}
+
+\subsection{Métrologie, Stratégies d'Évaluation et Interprétabilité}
+
+\begin{defbox}[Validation Croisée Stratifiée \& GroupKFold]
+\textbf{Définition :} Protocoles de ré-échantillonnage partitionnant le jeu de données d'entraînement en $K$ plis (\textit{folds}) mutuellement exclusifs pour évaluer la capacité de généralisation \citep{hastie2009elements} :
+\begin{itemize}[leftmargin=*, label=$\bullet$]
+    \item \textbf{Stratified K-Fold :} Garantit que chaque pli contient rigoureusement les mêmes proportions de classes ($78,35\%$ vs $21,65\%$) que le jeu global.
+    \item \textbf{GroupKFold :} Assure qu'aucun groupe d'observations (ici, aucun groupe MLST) n'apparaisse simultanément dans le sous-ensemble d'entraînement et le sous-ensemble de validation d'un même pli.
+\end{itemize}
+\textbf{Rôle dans le projet :} Permet de comparer la performance standard (i.i.d.) et la robustesse du modèle face à des clades bactériens inédits (sans fuite phylogénétique).\\
+\textbf{Source de référence :} \citet{hastie2009elements} ; \citet{earle2016identifying}.
+\end{defbox}
+
+\begin{defbox}[Courbes PR-AUC (AUPRC) versus ROC-AUC]
+\textbf{Définition :} Outils métrologiques d'évaluation des classifieurs probabilistes à travers l'ensemble des seuils de décision possibles \citep{fawcett2006introduction,davis2006relationship,saito2015precision} :
+\begin{itemize}[leftmargin=*, label=$\bullet$]
+    \item \textbf{ROC-AUC (\textit{Receiver Operating Characteristic}) :} Trace le Taux de Vrais Positifs (Sensibilité) en fonction du Taux de Faux Positifs ($1 - \text{Spécificité}$). En présence de fort déséquilibre, le grand nombre de vrais négatifs atténue artificiellement le taux de faux positifs, rendant la métrique trop optimiste.
+    \item \textbf{PR-AUC (\textit{Precision-Recall Area Under Curve}) :} Trace la Précision ($\frac{\text{VP}}{\text{VP}+\text{FP}}$) en fonction du Rappel ($\frac{\text{VP}}{\text{VP}+\text{FN}}$). Cette courbe ne dépend pas du nombre de vrais négatifs et reflète fidèlement la qualité de détection de la classe minoritaire d'intérêt.
+\end{itemize}
+\textbf{Rôle dans le projet :} La PR-AUC est la métrique décisionnelle reine pour classer les modèles du benchmark sur les isolats résistants.\\
+\textbf{Source de référence :} \citet{davis2006relationship} ; \citet{saito2015precision}.
+\end{defbox}
+
+\begin{defbox}[Score $F_1$ et Exactitude Équilibrée (\textit{Balanced Accuracy})]
+\textbf{Définition :} Indicateurs synthétiques de performance insensibles aux distorsions du déséquilibre de classe \citep{powers2011evaluation,brodersen2010balanced} :
+\begin{itemize}[leftmargin=*, label=$\bullet$]
+    \item \textbf{$F_1$-Score :} Moyenne harmonique de la précision et du rappel : $F_1 = 2 \cdot \frac{\text{Précision} \times \text{Rappel}}{\text{Précision} + \text{Rappel}}$.
+    \item \textbf{Balanced Accuracy :} Moyenne arithmétique de la sensibilité et de la spécificité : $\text{BA} = \frac{1}{2}\left( \frac{\text{VP}}{\text{VP}+\text{FN}} + \frac{\text{VN}}{\text{VN}+\text{FP}} \right)$. Évite le score trompeur de l'exactitude brute ($78,35\%$).
+\end{itemize}
+\textbf{Rôle dans le projet :} Permettent de mesurer le compromis clinique entre détection des résistants et préservation des sensibles.\\
+\textbf{Source de référence :} \citet{powers2011evaluation} ; \citet{brodersen2010balanced}.
+\end{defbox}
+
+\begin{defbox}[Indice $J$ de Youden \& Calibration de Seuil]
+\textbf{Définition :} Statistique diagnostique introduite par \citet{youden1950index} pour choisir le seuil décisionnel $\tau \in [0, 1]$ optimal sur les probabilités prédites $\hat{p}_i$ :
+\[
+J(\tau) = \text{Sensibilité}(\tau) + \text{Spécificité}(\tau) - 1
+\]
+L'indice mesure la distance verticale maximale entre la courbe ROC et la diagonale de classification aléatoire.\\
+\textbf{Rôle dans le projet :} Permet de dépasser le seuil par défaut arbitraire $\tau=0.5$ pour ajuster précisément le compromis clinique en fonction des coûts relatifs des faux négatifs.\\
+\textbf{Source de référence :} \citet{youden1950index}.
+\end{defbox}
+
+\begin{defbox}[Optimisation Bayésienne TPE (\texttt{Optuna})]
+\textbf{Définition :} Méthode séquentielle d'optimisation d'hyperparamètres basée sur l'estimateur de densité par fenêtres de Parzen structurées en arbre (\textit{Tree-structured Parzen Estimator}, TPE) \citep{bergstra2011algorithms}. Contrairement à la recherche par grille ou aléatoire, l'algorithme modélise séparément $p(\mathbf{x}|y < y^*)$ et $p(\mathbf{x}|y \ge y^*)$ pour échantillonner activement les configurations d'hyperparamètres maximisant l'amélioration espérée (\textit{Expected Improvement}).\\
+\textbf{Rôle dans le projet :} Implémenté via la bibliothèque \texttt{Optuna} \citep{akiba2019optuna} pour calibrer avec précision les taux d'apprentissage, profondeurs d'arbres et pénalités de régularisation.\\
+\textbf{Source de référence :} \citet{bergstra2011algorithms} ; \citet{akiba2019optuna}.
+\end{defbox}
+
+\begin{defbox}[Valeurs de SHAP (\textit{SHapley Additive exPlanations})]
+\textbf{Définition :} Cadre d'explicabilité de l'apprentissage automatique fondé sur la théorie des jeux coopératifs \citep{lundberg2017unified}. La valeur de Shapley attribue à chaque descripteur $j$ une contribution marginale $\phi_j$ à la déviation de la prédiction locale $\hat{f}(\mathbf{x})$ par rapport à la prédiction moyenne $\mathbb{E}[f(\mathbf{x})]$ :
+\[
+\phi_j = \sum_{S \subseteq F \setminus \{j\}} \frac{|S|!(|F| - |S| - 1)!}{|F|!} \left[ f(S \cup \{j\}) - f(S) \right]
+\]
+L'algorithme TreeSHAP \citep{lundberg2020local} calcule ces attributions de manière exacte et en temps polynomial pour les modèles d'arbres (Random Forest, XGBoost, LightGBM).\\
+\textbf{Rôle dans le projet :} Indispensable pour l'audit biologique : il permet d'extraire le top-20 des biomarqueurs génomiques et de vérifier leur congruence avec les connaissances médicales établies.\\
+\textbf{Source de référence :} \citet{lundberg2017unified} ; \citet{lundberg2020local}.
+\end{defbox}
+
+% ==============================================================================
+\section{Planning Opérationnel des Expérimentations}
+% ==============================================================================
+
+\begin{table}[h!]
+\centering
+\caption{Feuille de route expérimentale}
+\vspace{0.2cm}
+\begin{tabularx}{\textwidth}{l>{\raggedright\arraybackslash}p{3.5cm}X}
+\toprule
+\textbf{Phase} & \textbf{Étape} & \textbf{Livrables \& Actions} \\
+\midrule
+\textbf{Phase 1} & Prétraitement \& Baselines & Utilisation de \texttt{load\_train()}, filtrage des gènes quasi-invariants, baselines Dummy \& Logistic Regression \citep{tibshirani1996regression}. \\
+\addlinespace
+\textbf{Phase 2} & Modèles Ensemblistes (ML) & Entraînement de Random Forest, XGBoost et LightGBM avec pondération de classe et 5-Fold CV stratifiée \citep{breiman2001random,chen2016xgboost,ke2017lightgbm}. \\
+\addlinespace
+\textbf{Phase 3} & Modèles Deep Learning & Conception du MLP régularisé sous PyTorch, test de la Focal Loss et monitoring de la convergence \citep{goodfellow2016deep,lin2017focal}. \\
+\addlinespace
+\textbf{Phase 4} & Évaluation Anti-Fuite & Benchmarking sous \textit{GroupKFold (MLST)} pour mesurer la robustesse inter-clades \citep{earle2016identifying,moradigaravand2018prediction}. \\
+\addlinespace
+\textbf{Phase 5} & Explicabilité \& Audit & Calcul des valeurs TreeSHAP, extraction du top-20 des biomarqueurs et validation biologique \citep{lundberg2020local,hooper2015quinolone}. \\
+\bottomrule
+\end{tabularx}
+\label{tab:roadmap}
+\end{table}
+
+\newpage
+% ==============================================================================
+\section{Références Bibliographiques (Format APA \texorpdfstring{7\textsuperscript{e}}{7e} édition)}
+% ==============================================================================
+
+Les références ci-dessous sont présentées conformément aux normes de l'American Psychological Association (APA 7\textsuperscript{e} édition), telles qu'exportées par Zotero, avec classement alphabétique strict par premier auteur, retrait suspendu de $1,27\text{ cm}$, typographie soignée et liens numériques d'objet (DOI) pérennes.
+
+\begin{thebibliography}{99}
+
+\bibitem[Agresti(2013)]{agresti2013categorical}
+Agresti, A. (2013). \textit{Categorical data analysis} (3\textsuperscript{e} éd.). John Wiley \& Sons. \url{https://doi.org/10.1002/0471249688}
+
+\bibitem[Akiba et~al.(2019)]{akiba2019optuna}
+Akiba, T., Sano, S., Yanase, T., Ohta, T., \& Koyama, M. (2019). Optuna: A next-generation hyperparameter optimization framework. Dans \textit{Proceedings of the 25th ACM SIGKDD International Conference on Knowledge Discovery \& Data Mining} (p.~2623--2631). ACM. \url{https://doi.org/10.1145/3292500.3330701}
+
+\bibitem[Aldred et~al.(2014)]{aldred2014mechanism}
+Aldred, K. J., Kerns, R. J., \& Osheroff, N. (2014). Mechanism of quinolone action and resistance. \textit{Biochemistry}, \textit{53}(10), 1565--1574. \url{https://doi.org/10.1021/bi5000564}
+
+\bibitem[Anahtar et~al.(2021)]{anahtar2021applications}
+Anahtar, M. N., Yang, J. H., \& Kanjilal, S. (2021). Applications of machine learning to the problem of antimicrobial resistance: An emerging model for translational bacteriogenomics. \textit{Clinical Microbiology Reviews}, \textit{34}(2), e00054-20. \url{https://doi.org/10.1128/CMR.00054-20}
+
+\bibitem[Ar{\i}k \& Pfister(2021)]{arik2021tabnet}
+Ar{\i}k, S. {\"O}., \& Pfister, T. (2021). TabNet: Attentive interpretable tabular learning. \textit{Proceedings of the AAAI Conference on Human Computation and Crowdsourcing}, \textit{35}(8), 6679--6687. \url{https://doi.org/10.1609/aaai.v35i8.16826}
+
+\bibitem[Ba et~al.(2016)]{ba2016layer}
+Ba, J. L., Kiros, J. R., \& Hinton, G. E. (2016). Layer normalization. \textit{arXiv preprint arXiv:1607.06450}. \url{https://doi.org/10.48550/arXiv.1607.06450}
+
+\bibitem[Bellman(1957)]{bellman1957dynamic}
+Bellman, R. (1957). \textit{Dynamic programming}. Princeton University Press.
+
+\bibitem[Bergstra et~al.(2011)]{bergstra2011algorithms}
+Bergstra, J., Bardenet, R., Bengio, Y., \& K{\'e}gl, B. (2011). Algorithms for hyper-parameter optimization. Dans J. Shawe-Taylor, R. S. Zemel, P. L. Bartlett, F. Pereira, \& K. Q. Weinberger (Éds.), \textit{Advances in Neural Information Processing Systems} (Vol.~24, p.~2546--2554). Curran Associates, Inc. \url{https://proceedings.neurips.cc/paper/2011/hash/86e8f03c-Abstract.html}
+
+\bibitem[Breiman(2001)]{breiman2001random}
+Breiman, L. (2001). Random forests. \textit{Machine Learning}, \textit{45}(1), 5--32. \url{https://doi.org/10.1023/A:1010933404324}
+
+\bibitem[Brodersen et~al.(2010)]{brodersen2010balanced}
+Brodersen, K. H., Ong, C. S., Stephan, K. E., \& Buhmann, J. M. (2010). The balanced accuracy and its posterior distribution. Dans \textit{2010 20th International Conference on Pattern Recognition} (p.~3121--3124). IEEE. \url{https://doi.org/10.1109/ICPR.2010.764}
+
+\bibitem[Chen \& Guestrin(2016)]{chen2016xgboost}
+Chen, T., \& Guestrin, C. (2016). XGBoost: A scalable tree boosting system. Dans \textit{Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining} (p.~785--794). ACM. \url{https://doi.org/10.1145/2939672.2939785}
+
+\bibitem[Cortes \& Vapnik(1995)]{cortes1995support}
+Cortes, C., \& Vapnik, V. (1995). Support-vector networks. \textit{Machine Learning}, \textit{20}(3), 273--297. \url{https://doi.org/10.1007/BF00994018}
+
+\bibitem[Davis \& Goadrich(2006)]{davis2006relationship}
+Davis, J., \& Goadrich, M. (2006). The relationship between Precision-Recall and ROC curves. Dans \textit{Proceedings of the 23rd International Conference on Machine Learning} (p.~233--240). ACM. \url{https://doi.org/10.1145/1143844.1143874}
+
+\bibitem[Donoho(2000)]{donoho2000highdim}
+Donoho, D. L. (2000). High-dimensional data analysis: The curses and blessings of dimensionality. Dans \textit{AMS Conference on Math Challenges of the 21st Century} (p.~1--32). American Mathematical Society.
+
+\bibitem[Du et~al.(2018)]{du2018multidrug}
+Du, D., Wang-Kan, X., Neuberger, A., van Veen, H. W., Pos, K. M., Piddock, L. J. V., \& Luisi, B. F. (2018). Multidrug efflux pumps: Structure, function and regulation. \textit{Nature Reviews Microbiology}, \textit{16}(9), 523--539. \url{https://doi.org/10.1038/s41579-018-0048-6}
+
+\bibitem[Earle et~al.(2016)]{earle2016identifying}
+Earle, S. G., Wu, C.-H., Charlesworth, J., Stoesser, N., Gordon, N. C., Walker, T. M., Spencer, C. C. A., Crook, D. W., Smith, E. G., Bradley, P., Iqbal, Z., Peto, T. E. A., \& Wilson, D. J. (2016). Identifying variation responsible for disease or drug resistance in genome-wide association studies for genome-wide associated pathogens. \textit{Nature Communications}, \textit{7}(1), 10790. \url{https://doi.org/10.1038/ncomms10790}
+
+\bibitem[Fawcett(2006)]{fawcett2006introduction}
+Fawcett, T. (2006). An introduction to ROC analysis. \textit{Pattern Recognition Letters}, \textit{27}(8), 861--874. \url{https://doi.org/10.1016/j.patrec.2005.10.010}
+
+\bibitem[Goodfellow et~al.(2016)]{goodfellow2016deep}
+Goodfellow, I., Bengio, Y., \& Courville, A. (2016). \textit{Deep learning}. MIT Press.
+
+\bibitem[Halko et~al.(2011)]{halko2011finding}
+Halko, N., Martinsson, P.-G., \& Tropp, J. A. (2011). Finding structure with randomness: Probabilistic algorithms for constructing approximate matrix decompositions. \textit{SIAM Review}, \textit{53}(2), 217--288. \url{https://doi.org/10.1137/090771806}
+
+\bibitem[Hastie et~al.(2009)]{hastie2009elements}
+Hastie, T., Tibshirani, R., \& Friedman, J. (2009). \textit{The elements of statistical learning: Data mining, inference, and prediction} (2\textsuperscript{e} éd.). Springer. \url{https://doi.org/10.1007/978-0-387-84858-7}
+
+\bibitem[Hastie et~al.(2015)]{hastie2015statistical}
+Hastie, T., Tibshirani, R., \& Wainwright, M. (2015). \textit{Statistical learning with sparsity: The lasso and generalizations}. CRC Press. \url{https://doi.org/10.1201/b18401}
+
+\bibitem[He \& Garcia(2009)]{he2009learning}
+He, H., \& Garcia, E. A. (2009). Learning from imbalanced data. \textit{IEEE Transactions on Knowledge and Data Engineering}, \textit{21}(9), 1263--1284. \url{https://doi.org/10.1109/TKDE.2008.239}
+
+\bibitem[Hendrycks \& Gimpel(2016)]{hendrycks2016gelu}
+Hendrycks, D., \& Gimpel, K. (2016). Gaussian Error Linear Units (GELUs). \textit{arXiv preprint arXiv:1606.08415}. \url{https://doi.org/10.48550/arXiv.1606.08415}
+
+\bibitem[Hooper \& Jacoby(2015)]{hooper2015quinolone}
+Hooper, D. C., \& Jacoby, G. A. (2015). Mechanisms of drug resistance: Quinolone resistance. \textit{Cold Spring Harbor Perspectives in Medicine}, \textit{5}(9), a025326. \url{https://doi.org/10.1101/cshperspect.a025326}
+
+\bibitem[Hopkins et~al.(2005)]{hopkins2005mechanisms}
+Hopkins, K. L., Davies, R. H., \& Threlfall, E. J. (2005). Mechanisms of quinolone resistance in \textit{Escherichia coli} and \textit{Salmonella}: Recent developments. \textit{International Journal of Antimicrobial Agents}, \textit{25}(5), 358--373. \url{https://doi.org/10.1016/j.ijantimicag.2005.02.006}
+
+\bibitem[Ioffe \& Szegedy(2015)]{ioffe2015batch}
+Ioffe, S., \& Szegedy, C. (2015). Batch normalization: Accelerating deep network training by reducing internal covariate shift. Dans \textit{Proceedings of the 32nd International Conference on Machine Learning} (p.~448--456). PMLR. \url{https://proceedings.mlr.press/v37/ioffe15.html}
+
+\bibitem[Jacoby(2005)]{jacoby2005mechanisms}
+Jacoby, G. A. (2005). Mechanisms of resistance to fluoroquinolones. \textit{Clinical Infectious Diseases}, \textit{41}(Suppl.~2), S120--S126. \url{https://doi.org/10.1086/428052}
+
+\bibitem[Ke et~al.(2017)]{ke2017lightgbm}
+Ke, G., Meng, Q., Finley, T., Wang, T., Chen, W., Ma, W., Ye, Q., \& Liu, T.-Y. (2017). LightGBM: A highly efficient gradient boosting decision tree. Dans I. Guyon, U. V. Luxburg, S. Bengio, H. Wallach, R. Fergus, S. Vishwanathan, \& R. Garnett (Éds.), \textit{Advances in Neural Information Processing Systems} (Vol.~30, p.~3146--3154). Curran Associates, Inc. \url{https://proceedings.neurips.cc/paper/2017/hash/6449f44a-Abstract.html}
+
+\bibitem[Kim(2014)]{kim2014convolutional}
+Kim, Y. (2014). Convolutional neural networks for sentence classification. Dans \textit{Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)} (p.~1746--1751). Association for Computational Linguistics. \url{https://doi.org/10.3115/v1/D14-1181}
+
+\bibitem[LeCun et~al.(1998)]{lecun1998gradient}
+LeCun, Y., Bottou, L., Bengio, Y., \& Haffner, P. (1998). Gradient-based learning applied to document recognition. \textit{Proceedings of the IEEE}, \textit{86}(11), 2278--2324. \url{https://doi.org/10.1109/5.726791}
+
+\bibitem[Lees et~al.(2016)]{lees2016sequence}
+Lees, J. A., Vehkala, M., V{\"a}lim{\"a}ki, N., Harris, S. R., Chewapreecha, C., Croucher, N. J., Marttinen, P., Davies, M. R., Steer, A. C., Tong, S. Y. C., Honkela, A., Parkhill, J., Bentley, S. D., \& Corander, J. (2016). Sequence element enrichment analysis to detect pathogen phenome-genome associations. \textit{Nature Communications}, \textit{7}(1), 12797. \url{https://doi.org/10.1038/ncomms12797}
+
+\bibitem[Leinonen et~al.(2011)]{leinonen2011sequence}
+Leinonen, R., Sugawara, H., Shumway, M., \& International Nucleotide Sequence Database Collaboration. (2011). The sequence read archive. \textit{Nucleic Acids Research}, \textit{39}(Database issue), D19--D21. \url{https://doi.org/10.1093/nar/gkq1019}
+
+\bibitem[Lin et~al.(2017)]{lin2017focal}
+Lin, T.-Y., Goyal, P., Girshick, R., He, K., \& Doll{\'a}r, P. (2017). Focal loss for dense object detection. Dans \textit{Proceedings of the IEEE International Conference on Computer Vision (ICCV)} (p.~2980--2988). IEEE. \url{https://doi.org/10.1109/ICCV.2017.324}
+
+\bibitem[Lundberg \& Lee(2017)]{lundberg2017unified}
+Lundberg, S. M., \& Lee, S.-I. (2017). A unified approach to interpreting model predictions. Dans I. Guyon, U. V. Luxburg, S. Bengio, H. Wallach, R. Fergus, S. Vishwanathan, \& R. Garnett (Éds.), \textit{Advances in Neural Information Processing Systems} (Vol.~30, p.~4765--4774). Curran Associates, Inc. \url{https://proceedings.neurips.cc/paper/2017/hash/8a20a862-Abstract.html}
+
+\bibitem[Lundberg et~al.(2020)]{lundberg2020local}
+Lundberg, S. M., Erion, G., Chen, H., DeGrave, A., Prutkin, J. M., Nair, B., Katz, R., Himmelfarb, J., Bansal, N., \& Lee, S.-I. (2020). From local explanations to global understanding with explainable AI for trees. \textit{Nature Machine Intelligence}, \textit{2}(1), 56--67. \url{https://doi.org/10.1038/s42256-019-0138-9}
+
+\bibitem[Maiden et~al.(1998)]{maiden1998multilocus}
+Maiden, M. C. J., Bygraves, J. A., Feil, E., Morelli, G., Russell, J. E., Urwin, R., Zhang, Q., Zhou, J., Zurth, K., Caugant, D. A., Feavers, I. M., Achtman, M., \& Spratt, B. G. (1998). Multilocus sequence typing: A portable approach to the identification of clones within populations of pathogenic microorganisms. \textit{Proceedings of the National Academy of Sciences}, \textit{95}(6), 3140--3145. \url{https://doi.org/10.1073/pnas.95.6.3140}
+
+\bibitem[Medini et~al.(2005)]{medini2005microbial}
+Medini, D., Donati, C., Tettelin, H., Masignani, V., \& Rappuoli, R. (2005). The microbial pan-genome. \textit{Current Opinion in Genetics \& Development}, \textit{15}(6), 589--594. \url{https://doi.org/10.1016/j.gde.2005.09.006}
+
+\bibitem[Moradigaravand et~al.(2018)]{moradigaravand2018prediction}
+Moradigaravand, D., Palm, M., Farewell, A., Mustonen, V., Warringer, J., \& Parts, L. (2018). Prediction of antibiotic resistance in \textit{Escherichia coli} from large-scale pan-genome data. \textit{PLOS Computational Biology}, \textit{14}(12), e1006258. \url{https://doi.org/10.1371/journal.pcbi.1006258}
+
+\bibitem[Murray et~al.(2022)]{murray2022global}
+Murray, C. J. L., Ikuta, K. S., Sharara, F., Swetschinski, L., Robles Aguilar, G., Gray, A., Han, C., Bisignano, C., Rao, P., Wool, E., Johnson, S. C., Browne, A. J., Chipeta, M. G., Fell, F., Hackett, S., Haines-Woodhouse, G., Hamadani, B. H. K., Kumaran, E. A. P., McManigal, B., \dots Naghavi, M. (2022). Global burden of bacterial antimicrobial resistance in 2019: A systematic analysis. \textit{The Lancet}, \textit{399}(10325), 629--655. \url{https://doi.org/10.1016/S0140-6736(21)02724-0}
+
+\bibitem[Nair \& Hinton(2010)]{nair2010rectified}
+Nair, V., \& Hinton, G. E. (2010). Rectified linear units improve restricted Boltzmann machines. Dans \textit{Proceedings of the 27th International Conference on Machine Learning} (p.~807--814). Omnipress.
+
+\bibitem[Nicolas-Chanoine et~al.(2014)]{nicolaschanoine2014ecoli}
+Nicolas-Chanoine, M.-H., Bertrand, X., \& Madec, J.-Y. (2014). \textit{Escherichia coli} ST131, an intriguing clonal group. \textit{Clinical Microbiology Reviews}, \textit{27}(3), 543--574. \url{https://doi.org/10.1128/CMR.00125-13}
+
+\bibitem[Nikaido \& Pag{\`e}s(2012)]{nikaido2012efflux}
+Nikaido, H., \& Pag{\`e}s, J.-M. (2012). Broad-specificity efflux pumps and them role in multidrug resistance of Gram-negative bacteria. \textit{International Journal of Antimicrobial Agents}, \textit{39}(6), 460--468. \url{https://doi.org/10.1016/j.ijantimicag.2012.02.002}
+
+\bibitem[Powers(2011)]{powers2011evaluation}
+Powers, D. M. W. (2011). Evaluation: From precision, recall and F-measure to ROC, informedness, markedness and correlation. \textit{Journal of Machine Learning Technologies}, \textit{2}(1), 37--63.
+
+\bibitem[Rodr{\'\i}guez-Mart{\'\i}nez et~al.(2016)]{rodriguezmartinez2016mechanisms}
+Rodr{\'\i}guez-Mart{\'\i}nez, J.-M., Machuca, J., Cano, M. E., Calvo, J., Mart{\'\i}nez-Mart{\'\i}nez, L., \& Pascual, A. (2016). Plasmid-mediated quinolone resistance: Mechanisms and clinical impact. \textit{Enfermedades Infecciosas y Microbiolog{\'\i}a Cl{\'\i}nica}, \textit{34}(10), 666--674. \url{https://doi.org/10.1016/j.eimc.2015.08.005}
+
+\bibitem[Saito \& Rehmsmeier(2015)]{saito2015precision}
+Saito, T., \& Rehmsmeier, M. (2015). The precision-recall plot is more informative than the ROC plot when evaluating imbalanced datasets. \textit{PLOS ONE}, \textit{10}(3), e0118432. \url{https://doi.org/10.1371/journal.pone.0118432}
+
+\bibitem[Srivastava et~al.(2014)]{srivastava2014dropout}
+Srivastava, N., Hinton, G., Krizhevsky, A., Sutskever, I., \& Salakhutdinov, R. (2014). Dropout: A simple way to prevent neural networks from overfitting. \textit{Journal of Machine Learning Research}, \textit{15}(56), 1929--1958. \url{http://jmlr.org/papers/v15/srivastava14a.html}
+
+\bibitem[Tettelin et~al.(2005)]{tettelin2005genome}
+Tettelin, H., Masignani, V., Cieslewicz, M. J., Donati, C., Medini, D., Ward, N. L., Angiuoli, S. V., Crabtree, J., Jones, A. L., Durkin, A. S., Deboy, R. T., Davidsen, T. M., Mora, M., Scarselli, M., Margarit y Ros, I., Peterson, J. D., Hauser, C. R., Sundaram, J. P., Nelson, W. C., \dots Fraser, C. M. (2005). Genome analysis of multiple pathogenic isolates of \textit{Streptococcus agalactiae}: Implications for the microbial ``pan-genome''. \textit{Proceedings of the National Academy of Sciences}, \textit{102}(39), 13950--13955. \url{https://doi.org/10.1073/pnas.0506758102}
+
+\bibitem[Tibshirani(1996)]{tibshirani1996regression}
+Tibshirani, R. (1996). Regression shrinkage and selection via the lasso. \textit{Journal of the Royal Statistical Society: Series B (Methodological)}, \textit{58}(1), 267--288. \url{https://doi.org/10.1111/j.2517-6161.1996.tb02080.x}
+
+\bibitem[Vohra(2016)]{vohra2016apache}
+Vohra, D. (2016). Apache Parquet. Dans \textit{Practical Hadoop ecosystem: A definitive guide to Hadoop-related frameworks and tools} (p.~325--335). Apress. \url{https://doi.org/10.1007/978-1-4842-2199-0_8}
+
+\bibitem[World Health Organization(2024)]{who2024amr}
+World Health Organization. (2024). \textit{Antimicrobial resistance fact sheet}. World Health Organization. \url{https://www.who.int/news-room/fact-sheets/detail/antimicrobial-resistance}
+
+\bibitem[Youden(1950)]{youden1950index}
+Youden, W. J. (1950). Index for rating diagnostic tests. \textit{Cancer}, \textit{3}(1), 32--35. \url{https://doi.org/10.1002/1097-0142(1950)3:1<32::AID-CNCR2820030106>3.0.CO;2-3}
+
+\bibitem[Zou \& Hastie(2005)]{zou2005regularization}
+Zou, H., \& Hastie, T. (2005). Regularization and variable selection via the elastic net. \textit{Journal of the Royal Statistical Society: Series B (Statistical Methodology)}, \textit{67}(2), 301--320. \url{https://doi.org/10.1111/j.1467-9868.2005.00503.x}
+
+\end{thebibliography}
+
+\end{document}

@@ -1,0 +1,360 @@
+---
+title: "Prédire la résistance à la ciprofloxacine chez *Escherichia coli*"
+subtitle: "Du pangénome aux SNP QRDR : modèles classiques, splits groupés et regard sur le deep learning"
+author: "Benjamin HIN"
+date: "2026"
+format:
+  revealjs:
+    theme: [default, custom.scss]
+    slide-number: true
+    transition: slide
+    background-transition: fade
+    incremental: false
+    embed-resources: true
+    width: 1280
+    height: 720
+    margin: 0.08
+    footer: "Projet ML / DL — Résistance aux antibiotiques"
+---
+
+## Contexte
+
+### Un problème de santé publique
+
+- *Escherichia coli* : pathogène majeur, nombreuses résistances.
+- **Ciprofloxacine** : fluoroquinolone largement utilisée.
+- La résistance est en partie portée par des **mutations ponctuelles** connues.
+
+### Objectif du projet
+
+> Prédire le phénotype **sensible / résistant** à partir du génotype, avec un modèle **utile, interprétable et honnêtement évalué**.
+
+::: {.notes}
+Le projet ne consiste pas seulement à maximiser une accuracy. Il faut aussi éviter la fuite de clones, choisir les bonnes métriques et interpréter biologiquement les résultats.
+:::
+
+## Le jeu de données initial
+
+### Ce que l'on avait au départ
+
+- **5 935 isolats** de *E. coli*.
+- **20 731 features** de présence/absence de gènes et de clusters pangénomiques.
+- **4 650 sensibles** / **1 285 résistants** : 21,7 % de résistants.
+
+### Le problème
+
+- Les gènes **core** (`gyrA`, `gyrB`, `parC`, `parE`) sont présents chez toutes les souches.
+- Ils ont donc été filtrés comme **invariants**.
+- Résultat : les mutations QRDR, pourtant centrales, **ne sont pas dans la matrice initiale**.
+
+::: {.notes}
+Sans les SNP QRDR, le modèle ne peut pas apprendre les mécanismes les plus directs de résistance aux fluoroquinolones.
+:::
+
+## Pourquoi ajouter les SNP ?
+
+### Gènes ciblés
+
+| Rôle | Gènes |
+|---|---|
+| Cibles des fluoroquinolones | `gyrA`, `gyrB`, `parC`, `parE` |
+| Régulateurs / efflux | `marR`, `acrR`, `soxR` |
+
+### Sélection
+
+- SNP **non synonymes** extraits du VCF pangénomique.
+- Sites multi-alléliques éclatés.
+- Variants présents chez **au moins 5 isolats**.
+- Résultat : **198 features SNP**.
+
+### Mutations connues retrouvées
+
+| Mutation | Porteurs |
+|---|---:|
+| `gyrA` Ser83Leu | 1 548 |
+| `gyrA` Asp87Asn | 1 210 |
+| `parC` Ser80Ile | 1 223 |
+| `parC` Glu84Val | 536 |
+
+::: {.notes}
+Le VCF est un VCF de présence de variants : le génotype `.` signifie « pas de variant détecté », pas « donnée manquante ».
+:::
+
+## Structure finale des données
+
+### Dimensions
+
+```text
+5 935 lignes × 20 933 colonnes
+```
+
+| Bloc | Nombre de colonnes |
+|---|---:|
+| Métadonnées (`sra`, `Genome.Name`, `mlst_group`, `y`) | 4 |
+| Pangénome | 20 731 |
+| SNP QRDR / régulateurs | 198 |
+
+### Encodage
+
+- **Gènes** : `1` = présent, `0` = absent.
+- **SNP** : `1` = mutation détectée, `0` = référence.
+- Aucune valeur manquante.
+
+### Exemple
+
+| sra | mlst_group | y | gène_1 | … | SNP_gyrA_Ser83Leu | SNP_parC_Ser80Ile |
+|---|---|---:|---:|---|---:|---:|
+| ERR4035565 | ST131 | 1 | 1 | … | 1 | 0 |
+| ERR4035569 | ST73 | 0 | 0 | … | 0 | 0 |
+
+## Pipeline de construction
+
+```text
+Archive Zenodo
+    │
+    ▼
+output.non_silent.vcf.gz
+    │
+    ▼
+Filtrage des contigs QRDR
+    │
+    ▼
+Extraction des génotypes 0/1
+    │
+    ▼
+Fusion avec le pangénome (clé : sra)
+    │
+    ▼
+ecoli_ciprofloxacin_snp.parquet
+    │
+    ▼
+Splits groupés par MLST
+```
+
+### Fichiers produits
+
+- `data/processed/ecoli_ciprofloxacin_snp.parquet`
+- `data/splits_snp_3way/`
+- `docs/donnees_snp.md`, `docs/split_3way.md`
+
+## Splits : éviter la fuite de lignage
+
+### Le piège du split aléatoire
+
+- Un split aléatoire plaçait **95,8 %** des isolats de test dans un groupe MLST déjà vu dans le train.
+- Le modèle pouvait apprendre des **marqueurs de clones** plutôt que la résistance.
+
+### Split 3-way groupé
+
+- `StratifiedGroupKFold` à 6 folds.
+- 4 folds train / 1 validation / 1 test.
+- Aucun groupe MLST connu dans deux splits.
+- `unknown` traité comme groupe individuel.
+
+| Split | Isolats | Résistants | Taux R |
+|---|---:|---:|---:|
+| Train | 4 074 | 975 | 23,9 % |
+| Validation | 932 | 156 | 16,7 % |
+| Test | 929 | 154 | 16,6 % |
+
+::: {.notes}
+Le déséquilibre train/validation/test est inhérent aux grands groupes MLST. Il faut utiliser PR-AUC, recall, F1 et balanced accuracy.
+:::
+
+## Modèles testés
+
+### Trois familles
+
+1. **Régression logistique**
+2. **Random Forest**
+3. **XGBoost**
+
+### Protocole
+
+- Mêmes splits, mêmes features, mêmes métriques.
+- Seuil par défaut : 0,5.
+- Métriques principales :
+  - **PR-AUC** (adaptée au déséquilibre) ;
+  - **recall résistant** ;
+  - **F1 résistant** ;
+  - **balanced accuracy**.
+
+### Pourquoi pas l'accuracy seule ?
+
+Le baseline « tout sensible » donne déjà **83,3 %** en validation et **83,4 %** en test.
+
+## Résultats sur le split groupé
+
+### Modèles complets (20 929 features)
+
+| Modèle | PR-AUC train | PR-AUC val | PR-AUC test | Recall R val | Recall R test |
+|---|---:|---:|---:|---:|---:|
+| LogReg | 1,000 | 0,554 | 0,830 | 0,314 | 0,669 |
+| Random Forest | 1,000 | 0,803 | 0,833 | 0,385 | 0,604 |
+| **XGBoost** | 1,000 | **0,969** | **0,951** | **0,917** | **0,916** |
+
+### Lecture
+
+- Les trois modèles atteignent **100 % sur le train**.
+- Mais seul XGBoost garde un très bon niveau en validation **et** en test.
+- LogReg et Random Forest prédisent surtout la classe majoritaire.
+
+::: {.notes}
+Le recall résistant est la métrique critique : manquer un résistant peut être plus grave que sur-prédire une résistance.
+:::
+
+## Sur-apprentissage : oui, mais lequel ?
+
+### Tout le monde fait 100 % sur le train
+
+Avec 20 929 features pour 4 074 échantillons, les modèles peuvent mémoriser le train.
+
+### Ce qui compte : l'écart train → validation/test
+
+| Modèle | Écart train → val (PR-AUC) | Diagnostic |
+|---|---:|---|
+| LogReg complet | 1,000 → 0,554 | fort sur-apprentissage / sous-ajustement de la classe R |
+| Random Forest complet | 1,000 → 0,803 | sur-apprentissage modéré |
+| XGBoost complet | 1,000 → 0,969 | bon généralisation |
+| LogReg SNP seuls | 0,982 → 0,963 | très stable |
+| Pangénome seul | 1,000 → 0,501 | sur-apprentissage marqué |
+
+> Le sur-apprentissage ne se diagnostique pas avec le score de train seul, mais avec l'écart et la performance sur des données non vues.
+
+## Le signal vient surtout des SNP
+
+### Comparaison des représentations
+
+| Modèle | Features | PR-AUC val | PR-AUC test | Recall R val | Recall R test |
+|---|---|---:|---:|---:|---:|
+| LogReg | 198 SNP | **0,963** | **0,945** | **0,904** | **0,942** |
+| XGBoost | 198 SNP | 0,948 | 0,922 | 0,936 | 0,942 |
+| XGBoost | 20 929 | 0,969 | 0,951 | 0,917 | 0,916 |
+| LogReg | 20 731 gènes | 0,501 | 0,777 | 0,308 | 0,662 |
+| XGBoost | 20 731 gènes | 0,579 | 0,810 | 0,372 | 0,643 |
+
+### Conclusion
+
+- Le **pangénome seul** contient du bruit et des marqueurs de lignage.
+- Les **198 SNP** suffisent à obtenir l'essentiel de la performance.
+- XGBoost complet n'apporte qu'un gain marginal par rapport à une régression logistique SNP-only.
+
+::: {.notes}
+C'est un résultat important : le modèle le plus simple est presque aussi performant que le modèle complet. Il est aussi plus interprétable.
+:::
+
+## Interprétation biologique
+
+### Top features XGBoost
+
+| Feature | Importance |
+|---|---:|
+| `SNP_parC_Ser80Ile` | 28,0 % |
+| `SNP_gyrA_Asp87Asn` | 1,8 % |
+| `SNP_gyrA_Ser83Leu` | 0,8 % |
+
+### Ce que cela signifie
+
+- Le modèle s'appuie d'abord sur des mutations **connues** de résistance aux fluoroquinolones.
+- C'est **biologiquement rassurant**.
+- Les features pangénomiques restantes peuvent être des marqueurs de lignage ou des gènes accessoires.
+
+### Prudence
+
+- Importance ≠ causalité.
+- Les features corrélées se partagent l'importance.
+- Une validation externe reste nécessaire.
+
+## Deep learning : pertinent ?
+
+### Ce qui est raisonnable
+
+- **MLP sur les 198 SNP** : comparaison pédagogique simple.
+- **MLP sur les top 500 features** : compromis.
+- **Autoencodeur** : réduction de dimension, à tester.
+
+### Ce qui l'est moins
+
+- **MLP sur 20 929 features** : risque de sur-apprentissage.
+- **CNN** : pertinent seulement sur des séquences ou des données ordonnées.
+- **Modèle de fondation** : surdimensionné pour une matrice déjà construite.
+
+### Pourquoi ?
+
+- Les données sont **tabulaires** et déjà “feature-engineered”.
+- Le signal est **simple et connu**.
+- 5 935 échantillons, c'est petit pour fine-tuner un grand modèle.
+
+::: {.notes}
+Le deep learning n'est pas un objectif en soi. Ici, son intérêt est surtout pédagogique et comparatif.
+:::
+
+## Ce que le deep learning peut apporter pédagogiquement
+
+### Compétences travaillées
+
+- Passage de scikit-learn à PyTorch : tenseurs, loss, optimiseur, epochs.
+- Gestion du sur-apprentissage : dropout, weight decay, early stopping.
+- Déséquilibre : `pos_weight`, seuil, PR-AUC.
+- Choix d'architecture : MLP vs CNN vs modèle linéaire.
+- Interprétabilité : importance vs gradients / SHAP.
+- Rigueur : mêmes splits, mêmes métriques, plusieurs seeds.
+
+### Message scientifique
+
+> “Le ML classique est compétitif sur cette représentation tabulaire. Le deep learning n'apporte pas de gain significatif, ce qui s'explique par la nature des features et la taille du jeu.”
+
+C'est un **résultat négatif utile**, pas un échec.
+
+## Limites
+
+- **Test petit** : 929 isolats, 154 résistants → intervalles de confiance larges.
+- **Split groupé par MLST**, pas par phylogénie fine.
+- **Pas de validation externe** sur une autre cohorte.
+- **Seuil 0,5** non optimisé pour le coût clinique.
+- **Features pangénomiques** partiellement non annotées.
+- **Risque de marqueurs de lignage** dans les features non SNP.
+
+::: {.notes}
+Il faut présenter les résultats avec des intervalles de confiance et éviter de conclure sur des différences de 1 ou 2 points.
+:::
+
+## Perspectives
+
+### Pour consolider les résultats
+
+- Validation croisée groupée à 5 folds, plusieurs seeds.
+- Intervalles de confiance par bootstrap.
+- Validation externe.
+- Calibration des probabilités.
+- Analyse d'erreurs par lignage.
+
+### Pour aller plus loin
+
+- Ajouter d'autres mécanismes : pompes d'efflux, plasmides, gènes acquis.
+- Sélection de features SNPs + gènes.
+- MLP / autoencodeur sur les SNP.
+- CNN sur séquences brutes, si les données le permettent.
+
+## Conclusion
+
+### Ce que l'on retient
+
+- Le jeu enrichi contient **5 935 × 20 933** colonnes, dont **198 SNP QRDR**.
+- Un split **groupé par MLST** évite la fuite de clones.
+- **XGBoost** obtient les meilleures performances globales.
+- Une **régression logistique sur 198 SNP** est presque aussi bonne, plus simple et plus interprétable.
+- Le **pangénome seul** sur-apprend et généralise moins bien.
+- Le **deep learning** est intéressant pédagogiquement, mais pas prioritaire pour ce jeu.
+
+### Message final
+
+> Le bon modèle n'est pas le plus complexe : c'est celui qui capture le signal biologique, généralise sur des lignages non vus et reste interprétable.
+
+## Questions
+
+### Merci de votre attention
+
+- Des questions ?
+- Les notebooks, scripts et documents sont disponibles dans le projet.
+- Présentation générée avec **Quarto + Reveal.js**.

@@ -14,6 +14,24 @@ venv/
 ENV/
 env/
 
+# Artefacts de compilation LaTeX (régénérés par pdflatex)
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.bbl
+*.blg
+*.nav
+*.snm
+*.vrb
+
+# Rendus générés (slides / rapports)
+slides/presentation.html
+slides/*_files/
+
 # Fichiers système / OS
 .DS_Store
 Thumbs.db
@@ -21,3 +39,4 @@ Thumbs.db
 # IDEs
 .vscode/
 .idea/
+

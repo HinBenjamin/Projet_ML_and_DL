@@ -1,0 +1,1446 @@
+\documentclass[11pt,a4paper]{article}
+
+% ------------------------------------------------------------------------------
+% Encodage, langue, typographie
+% ------------------------------------------------------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[round,authoryear]{natbib}
+\usepackage[french]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.4cm]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+
+% ------------------------------------------------------------------------------
+% Mathématiques, tableaux, figures
+% ------------------------------------------------------------------------------
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{float}
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tcolorbox}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,backgrounds}
+\usepackage{hyperref}
+\bibliographystyle{apalike}
+
+% ------------------------------------------------------------------------------
+% Couleurs et boîtes
+% ------------------------------------------------------------------------------
+\definecolor{primary}{RGB}{25, 70, 110}
+\definecolor{secondary}{RGB}{35, 120, 150}
+\definecolor{accent}{RGB}{180, 55, 55}
+\definecolor{boxbg}{RGB}{245, 248, 252}
+\definecolor{warnbg}{RGB}{253, 243, 242}
+\definecolor{defbg}{RGB}{250, 250, 252}
+\definecolor{darkgray}{RGB}{60, 60, 60}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=primary,
+    citecolor=secondary,
+    urlcolor=secondary,
+    pdftitle={Prédiction de la résistance à la ciprofloxacine chez Escherichia coli},
+    pdfauthor={Benjamin HIN, Alexandre Aïtour, Baptiste Jacquet}
+}
+
+\newtcolorbox{keybox}[1][]{
+    colback=boxbg,
+    colframe=primary,
+    coltitle=white,
+    fonttitle=\bfseries,
+    title={#1},
+    arc=2.5mm,
+    boxrule=0.9pt
+}
+
+\newtcolorbox{warnbox}[1][]{
+    colback=warnbg,
+    colframe=accent,
+    coltitle=white,
+    fonttitle=\bfseries,
+    title={#1},
+    arc=2.5mm,
+    boxrule=0.9pt
+}
+
+\newtcolorbox{defbox}[1][]{
+    colback=defbg,
+    colframe=secondary,
+    coltitle=white,
+    fonttitle=\bfseries,
+    title={#1},
+    arc=2mm,
+    boxrule=0.7pt
+}
+
+% ------------------------------------------------------------------------------
+% En-têtes et pieds de page
+% ------------------------------------------------------------------------------
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\setlength{\headheight}{14pt}
+\lhead{\textcolor{darkgray}{\small Projet ML/DL -- Résistance à la ciprofloxacine}}
+\rhead{\textcolor{darkgray}{\small Démarche méthodologique}}
+\cfoot{\thepage}
+
+% ------------------------------------------------------------------------------
+% Titre
+% ------------------------------------------------------------------------------
+\title{
+    \vspace{-1.2cm}
+    \textbf{\LARGE Prédiction de la résistance à la ciprofloxacine chez \textit{Escherichia coli}}\\[0.35cm]
+    \large Démarche méthodologique, protocole expérimental et justification des choix\\
+    en Machine Learning et Deep Learning
+}
+\author{
+    \textbf{Benjamin HIN}\\
+    \textbf{Alexandre Aïtoun}\\
+    \textbf{Baptiste Jacquet}\\
+    Projet Machine Learning \& Deep Learning
+}
+\date{\today}
+
+% ------------------------------------------------------------------------------
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+
+\begin{abstract}
+Ce rapport décrit la démarche méthodologique retenue pour construire un modèle de prédiction de la résistance à la ciprofloxacine chez \textit{Escherichia coli} à partir de données génotypiques. Le jeu de données initial contient $5\,935$ isolats et $20\,731$ variables de présence/absence issues d'un pangénome. Comme les gènes du \textit{Quinolone Resistance-Determining Region} (QRDR) sont présents chez toutes les souches et ont été filtrés comme invariants, nous enrichissons la matrice avec $198$ polymorphismes nucléotidiques simples (SNP) non synonymes dans les gènes cibles et régulateurs de la résistance. Nous justifions ensuite un découpage train/validation/test \emph{groupé par MLST}, afin d'éviter la fuite de clones, puis nous comparons des modèles linéaires, des ensembles d'arbres et des réseaux de neurones. Le protocole privilégie des métriques adaptées au déséquilibre des classes (PR-AUC, rappel des résistants, F1, balanced accuracy, calibration) plutôt que l'exactitude brute. La démarche inclut aussi une LogReg avec interactions QRDR, des MLP (SNP, top-$k$, complet), un autoencodeur suivi d'un classifieur (équivalent d'un \emph{phenotype encoder}), TreeSHAP/LIME, et une analyse des erreurs par lignage. Les approches hors périmètre (CNN, modèles de fondation) sont justifiées en annexe. L'objectif n'est pas de démontrer que le Deep Learning est supérieur, mais de mener une comparaison contrôlée, interprétable et reproductible.
+\end{abstract}
+
+\vspace{0.3cm}
+\noindent\textbf{Mots-clés :} résistance aux antimicrobiens, \textit{Escherichia coli}, ciprofloxacine, QRDR, apprentissage supervisé, Deep Learning, PR-AUC, fuite de données, interprétabilité.
+
+\tableofcontents
+\newpage
+
+% ==============================================================================
+\section{Contexte, problématique et objectifs}
+% ==============================================================================
+
+\subsection{Un enjeu de santé publique}
+
+La résistance aux antimicrobiens (AMR) est l'une des principales menaces sanitaires mondiales. Les infections causées par des bactéries résistantes entraînent une mortalité importante et compliquent les décisions thérapeutiques \citep{murray2022global}. \textit{Escherichia coli} est un pathogène majeur, responsable d'infections urinaires, digestives et systémiques, et la ciprofloxacine, une fluoroquinolone à large spectre, fait partie des antibiotiques dont l'efficacité est directement menacée par l'émergence de résistances \citep{hooper2016}.
+
+Chez \textit{E. coli}, la résistance aux fluoroquinolones repose en grande partie sur des mutations ponctuelles dans la \textit{Quinolone Resistance-Determining Region} (QRDR) de l'ADN gyrase (\texttt{gyrA}, \texttt{gyrB}) et de la topoisomérase IV (\texttt{parC}, \texttt{parE}), ainsi que sur des altérations de régulateurs comme \texttt{marR}, \texttt{acrR} ou \texttt{soxR} \citep{aldred2014}. La détection rapide de ces mécanismes à partir du génome est donc un enjeu à la fois clinique et épidémiologique.
+
+\subsection{Pourquoi un modèle prédictif ?}
+
+Un modèle entraîné sur des génomes et des phénotypes peut aider à :
+\begin{itemize}[leftmargin=1.2em]
+    \item prioriser les tests phénotypiques ;
+    \item détecter des mécanismes de résistance connus ou émergents ;
+    \item comprendre quelles mutations portent le signal prédictif ;
+    \item évaluer la robustesse des modèles sur des lignages non vus.
+\end{itemize}
+
+Cependant, un modèle prédictif n'a de valeur que si son évaluation est honnête. Trois pièges doivent être évités :
+\begin{enumerate}[leftmargin=1.4em]
+    \item \textbf{la fuite de données} : des clones ou des lignages proches se retrouvent à la fois dans l'entraînement et dans le test ;
+    \item \textbf{le déséquilibre des classes} : les souches sensibles sont majoritaires, ce qui favorise des modèles qui prédisent presque toujours « sensible » ;
+    \item \textbf{le sur-apprentissage} : un modèle peut mémoriser l'ensemble d'entraînement et échouer sur des données nouvelles.
+\end{enumerate}
+
+\subsection{Questions de recherche}
+
+Le projet est structuré autour de cinq questions :
+
+\begin{keybox}[Questions de recherche]
+\begin{enumerate}[leftmargin=1.4em]
+    \item Peut-on prédire le phénotype sensible/résistant à partir du génotype avec une performance utile ?
+    \item Quelle représentation est suffisante : les $198$ SNP QRDR, le pangénome complet, ou les deux ?
+    \item Les modèles complexes (forêts, boosting, réseaux de neurones) apportent-ils un gain réel par rapport à une régression logistique ?
+    \item Quel est l'effet d'un découpage groupé par MLST sur l'estimation de la généralisation ?
+    \item Le Deep Learning est-il pertinent pour ce type de données tabulaires, et à quelles conditions ?
+\end{enumerate}
+\end{keybox}
+
+\subsection{Contributions attendues}
+
+Le projet ne se limite pas à comparer des scores. Il vise à produire :
+\begin{itemize}[leftmargin=1.2em]
+    \item un jeu de données enrichi et documenté, séparé du jeu de base pour préserver la comparabilité ;
+    \item un découpage train/validation/test groupé par MLST, reproductible ;
+    \item un benchmark de modèles classiques et neuronaux sur les mêmes données ;
+    \item une analyse du sur-apprentissage et de la fuite de données ;
+    \item une interprétation biologique des variables les plus importantes ;
+    \item une discussion critique sur l'usage du Deep Learning en génomique tabulaire.
+\end{itemize}
+
+\subsection{Positionnement par rapport à l'étude associée}
+
+Le jeu de données est associé à deux publications complémentaires, qu'il faut distinguer pour éviter les confusions.
+
+\paragraph{1. L'étude de construction du jeu de données (2024).}
+Mets et Morin \citep{mets2024} construisent et valident la ressource : pangénome de référence, appel de variants, annotation des variants non synonymes, statistiques descriptives et tests hypergéométriques sur des gènes AMR connus. Cette étude \textbf{ne réalise pas d'apprentissage supervisé} au sens du Machine Learning : elle ne compare ni régression logistique, ni forêt aléatoire, ni XGBoost, ni réseau de neurones. Le jeu de données est explicitement présenté comme un \emph{testbed} pour de futurs modèles de prédiction génotype--phénotype. Les perspectives annoncées incluent l'utilisation d'un \emph{phenotype encoder}, l'étude des interactions gène--gène et la prédiction de phénotypes.
+
+\paragraph{2. L'étude de prédiction génomique (2025).}
+Patton, York et Sandler \citep{patton2025} utilisent ce jeu de données pour caractériser l'architecture génétique de trois phénotypes AMR, dont la ciprofloxacine. Leur méthode principale est un \textbf{modèle linéaire mixte bayésien parcimonieux} (BSLMM) implémenté dans GEMMA \citep{zhou2013}, avec une version probit, une matrice de \emph{relatedness} centrée, $326\,625$ marqueurs (MAC $\ge 250$) et $32\,441$ marqueurs de présence/absence. Ils complètent l'analyse par :
+\begin{itemize}[leftmargin=1.2em]
+    \item une régression logistique avec termes d'interaction deux à deux pour tester l'épistasie entre les trois mutations majeures de la ciprofloxacine ;
+    \item un modèle de Markov caché (corHMM) pour inférer l'ordre d'apparition des mutations le long de l'arbre phylogénétique ;
+    \item une PCA et une régression logistique multinomiale pour relier la structure génomique au pays, à l'année et au MLST ;
+    \item des analyses phylogénétiques (IQ-TREE) et de déséquilibre de liaison (PLINK).
+\end{itemize}
+
+Dans les méthodes décrites, il n'y a pas de forêt aléatoire, de XGBoost, de SVM, de MLP, de CNN ni de modèle de fondation. Leur « prédiction génomique » estime des effets de marqueurs et l'héritabilité ; les méthodes décrites ne rapportent pas de split train/validation/test avec PR-AUC, rappel et matrice de confusion. Les modèles non linéaires (autoencodeurs, transformers, graphes de neurones) sont explicitement présentés comme une \textbf{perspective future}, pas comme une expérience réalisée.
+
+\paragraph{3. Ce que l'étude voulait faire, et comment notre projet s'y articule.}
+
+\begin{table}[H]
+\centering
+\caption{Positionnement du projet par rapport aux intentions de l'étude associée.}
+\label{tab:positionnement}
+\small
+\begin{tabularx}{\textwidth}{XX}
+\toprule
+\textbf{Intention de l'étude Arcadia} & \textbf{Réponse dans notre démarche} \\
+\midrule
+Prédire le phénotype à partir du génotype & Classification binaire supervisée, split groupé par MLST, évaluation sur lignages non vus \\
+Caractériser l'architecture génétique & Coefficients LogReg, importances RF/XGBoost, TreeSHAP (et LIME), confrontation aux mutations QRDR \\
+Tester des modèles non linéaires & MLP sur SNP, MLP sur top-$k$, autoencodeur + classifieur sur l'embedding \\
+Étudier les interactions gène--gène & LogReg avec termes d'interaction entre mutations QRDR majeures ; analyse des erreurs par lignage et par mécanisme \\
+Utiliser un \emph{phenotype encoder} & Autoencodeur génotypique (équivalent méthodologique), puis classifieur sur la couche latente ; comparaison à la PCA \\
+Passer à l'échelle, modèles de fondation & Hors périmètre (annexe~\ref{annexe:hors-perimetre}) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{4. Différences de protocole.}
+Les deux travaux ne répondent pas exactement à la même question :
+
+\begin{table}[H]
+\centering
+\caption{Comparaison des objectifs et des protocoles.}
+\label{tab:comparison_arcadia}
+\small
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+\textbf{Dimension} & \textbf{Étude Patton et al. (2025)} & \textbf{Notre projet} \\
+\midrule
+Objectif principal & Estimer l'architecture génétique et l'héritabilité & Évaluer la généralisation prédictive sur des lignages non vus \\
+Modèle central & BSLMM probabiliste (GEMMA) & LogReg, forêt aléatoire, XGBoost, MLP \\
+Structure de population & Matrice de \emph{relatedness} dans le modèle mixte & Split groupé par MLST \\
+Évaluation & Effets de marqueurs, héritabilité, transitions & PR-AUC, rappel, F1, balanced accuracy, calibration \\
+Jeu de test & Pas de hold-out de lignages décrit & Test hold-out, jamais utilisé pour la sélection \\
+Deep Learning & Perspective future & MLP, autoencodeur (\emph{phenotype encoder}), comparaison PCA \\
+Interactions & LogReg épistasie (3 mutations) & LogReg + interactions QRDR ; arbres / MLP \\
+Interprétabilité & Effets de marqueurs BSLMM & Coefficients, importances, TreeSHAP, LIME, erreurs par lignage \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{5. Conséquence pour l'interprétation.}
+Notre projet est \textbf{complémentaire} de l'étude Arcadia, pas concurrent. L'étude 2025 cherche à comprendre \emph{quels} variants portent le signal et \emph{comment} la résistance a évolué ; notre projet cherche à savoir \emph{si} un modèle entraîné sur ces variants généralise à de nouveaux lignages, et \emph{à quel coût} en termes de complexité. Les deux approches se rejoignent sur un point : les mutations \texttt{parC} Ser80Ile, \texttt{gyrA} Ser83Leu et \texttt{gyrA} Asp87Asn/Tyr/His dominent le signal. Cette convergence renforce la validité biologique des résultats.
+
+% ==============================================================================
+\section{Données et enrichissement}
+% ==============================================================================
+
+\subsection{Jeu de données initial}
+
+Le jeu de données provient de l'archive Zenodo associée au projet Arcadia Science \citep{mets2024,zenodo2024}. Il contient des génomes séquencés d'\textit{E. coli} et leurs phénotypes de résistance à plusieurs antibiotiques. Pour ce projet, nous nous concentrons sur la ciprofloxacine.
+
+Après restriction aux isolats ayant un phénotype documenté pour la ciprofloxacine, nous obtenons :
+\begin{itemize}[leftmargin=1.2em]
+    \item $N = 5\,935$ isolats ;
+    \item $4$ colonnes de métadonnées : \texttt{sra}, \texttt{Genome.Name}, \texttt{mlst\_group}, \texttt{y} ;
+    \item $20\,731$ variables de présence/absence de gènes ou de clusters pangénomiques ;
+    \item aucune valeur manquante dans la matrice de caractéristiques.
+\end{itemize}
+
+La variable cible est binaire :
+\[
+y_i =
+\begin{cases}
+0 & \text{si l'isolat } i \text{ est sensible à la ciprofloxacine},\\
+1 & \text{si l'isolat } i \text{ est résistant}.
+\end{cases}
+\]
+
+\begin{table}[H]
+\centering
+\caption{Distribution de la variable cible dans le jeu de données enrichi.}
+\label{tab:target}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Phénotype} & \textbf{Code} & \textbf{Effectif} & \textbf{Proportion} \\
+\midrule
+Sensible & $0$ & $4\,650$ & $78{,}35\,\%$ \\
+Résistant & $1$ & $1\,285$ & $21{,}65\,\%$ \\
+\midrule
+\textbf{Total} & -- & $\mathbf{5\,935}$ & $\mathbf{100\,\%}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Le déséquilibre est modéré mais suffisant pour rendre l'exactitude (accuracy) trompeuse : un classifieur qui prédit toujours « sensible » obtient déjà environ $78\,\%$ sur l'ensemble complet, et $83\,\%$ sur les ensembles de validation et de test du découpage retenu (voir section~\ref{sec:splits}). C'est pourquoi nous privilégions des métriques centrées sur la classe minoritaire.
+
+\subsection{Le problème des gènes core et l'absence des mutations QRDR}
+
+Le pangénome est une matrice de présence/absence. Les gènes présents chez toutes les souches (gènes \emph{core}) sont invariants et ont été filtrés lors de la construction de la matrice. Or, les gènes \texttt{gyrA}, \texttt{gyrB}, \texttt{parC} et \texttt{parE} sont précisément des gènes core : leur présence ne varie pas, mais leurs \emph{séquences} varient. Les mutations QRDR, pourtant centrales dans la résistance aux fluoroquinolones, ne sont donc pas représentées dans la matrice initiale.
+
+\begin{warnbox}[Conséquence]
+Sans les SNP QRDR, le modèle peut apprendre des associations avec des gènes accessoires ou des marqueurs de lignage, mais il ne dispose pas des mécanismes les plus directs de la résistance. Il est donc nécessaire d'enrichir la matrice avec les variants ponctuels pertinents.
+\end{warnbox}
+
+\subsection{Extraction ciblée des SNP QRDR et régulateurs}
+
+Nous n'ajoutons pas les $2{,}4$ millions de variants bruts du VCF pangénomique. Une telle matrice serait trop volumineuse, très redondante et difficile à interpréter. Nous adoptons une stratégie ciblée :
+
+\begin{enumerate}[leftmargin=1.4em]
+    \item \textbf{Sélection des contigs} : \texttt{gyrA}, \texttt{gyrB}, \texttt{parC}, \texttt{parE}, \texttt{marR}, \texttt{acrR\_1}, \texttt{acrR\_2}, \texttt{soxR}.
+    \item \textbf{Filtrage des variants} : seuls les variants non synonymes (missense, nonsense, frameshift) sont conservés. Les variants synonymes sont exclus car ils ne modifient pas la protéine et sont moins directement interprétables.
+    \item \textbf{Fréquence minimale} : un variant doit être présent chez au moins $5$ isolats. Cela évite les variants uniques, qui sont nombreux, instables et peu exploitables statistiquement.
+    \item \textbf{Sites multi-alléliques} : lorsqu'un même site porte plusieurs allèles alternatifs, chaque allèle est encodé comme une variable binaire distincte.
+    \item \textbf{Encodage} : $1$ si le variant est détecté, $0$ si l'allèle de référence est observé. Le génotype \texttt{.} du VCF signifie « pas de variant détecté », et non « donnée manquante ».
+\end{enumerate}
+
+Cette procédure produit \textbf{$198$ variables SNP}. Le jeu de base est conservé intact ; le jeu enrichi est écrit séparément dans \texttt{data/processed/ecoli\_ciprofloxacin\_snp.parquet}. Cette séparation permet de comparer les modèles avec et sans enrichissement, et de reproduire les résultats du jeu de base.
+
+\begin{table}[H]
+\centering
+\caption{Exemples de SNP QRDR extraits et nombre de porteurs.}
+\label{tab:snp_examples}
+\begin{tabular}{llr}
+\toprule
+\textbf{Gène} & \textbf{Substitution} & \textbf{Nombre de porteurs} \\
+\midrule
+\texttt{gyrA} & Ser83Leu & $1\,548$ \\
+\texttt{gyrA} & Asp87Asn & $1\,210$ \\
+\texttt{parC} & Ser80Ile & $1\,223$ \\
+\texttt{parC} & Glu84Val & $536$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Structure finale de la matrice}
+
+\begin{table}[H]
+\centering
+\caption{Structure du jeu de données enrichi.}
+\label{tab:structure}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Bloc} & \textbf{Nombre de colonnes} & \textbf{Encodage} \\
+\midrule
+Métadonnées & $4$ & identifiants, MLST, cible \\
+Pangénome & $20\,731$ & présence/absence $0/1$ \\
+SNP QRDR et régulateurs & $198$ & variant absent/présent $0/1$ \\
+\midrule
+\textbf{Total} & $\mathbf{20\,933}$ & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La matrice pangénomique est creuse : environ $70{,}6\,\%$ des valeurs sont nulles, avec en moyenne $6\,086$ gènes ou contigs détectés par isolat. Les variables SNP sont encore plus creuses (environ $95{,}2\,\%$ de zéros), ce qui est attendu pour des mutations rares.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    node distance=0.45cm,
+    box/.style={
+        draw=primary,
+        rounded corners,
+        fill=primary!5,
+        align=center,
+        minimum width=9.2cm,
+        minimum height=0.72cm,
+        font=\small
+    },
+    arrow/.style={-{Latex[length=2mm]}, thick, draw=primary}
+]
+\node[box] (vcf) {VCF pangénomique filtré (variants non synonymes)};
+\node[box, below=of vcf] (snp) {Extraction ciblée des contigs QRDR et régulateurs};
+\node[box, below=of snp] (mat) {Matrice SNP binaire ($198$ variables)};
+\node[box, below=of mat] (merge) {Fusion avec la matrice pangénomique ($20\,731$ variables)};
+\node[box, below=of merge] (split) {Découpage groupé par MLST (train / validation / test)};
+\node[box, below=of split] (models) {Entraînement des modèles ML et DL};
+\node[box, below=of models] (eval) {Évaluation : PR-AUC, rappel, F1, calibration};
+\node[box, below=of eval] (interp) {Interprétation biologique et analyse des limites};
+\foreach \a/\b in {vcf/snp, snp/mat, mat/merge, merge/split, split/models, models/eval, eval/interp}
+    \draw[arrow] (\a) -- (\b);
+\end{tikzpicture}
+\caption{Pipeline méthodologique, de l'extraction des SNP à l'interprétation.}
+\label{fig:pipeline}
+\end{figure}
+
+% ==============================================================================
+\section{Partitionnement et prévention de la fuite de données}
+\label{sec:splits}
+% ==============================================================================
+
+\subsection{Le piège du découpage aléatoire}
+
+Un découpage aléatoire des isolats peut placer des clones ou des souches très proches à la fois dans l'entraînement et dans le test. Le modèle apprend alors des marqueurs de lignage plutôt que les mécanismes de résistance, et les performances sont surestimées.
+
+Dans notre vérification exploratoire, un découpage aléatoire initial laissait \textbf{95,8\,\%} des isolats de test partager un groupe MLST avec l'ensemble d'entraînement. Ce n'est pas acceptable pour estimer la capacité de généralisation à des lignages non vus.
+
+\subsection{Découpage groupé par MLST}
+
+Nous utilisons \texttt{StratifiedGroupKFold} de scikit-learn \citep{pedregosa2011} avec les paramètres suivants :
+\begin{itemize}[leftmargin=1.2em]
+    \item $6$ folds ;
+    \item $4$ folds forment l'entraînement, $1$ fold la validation, $1$ fold le test ;
+    \item stratification sur la variable cible $y$ ;
+    \item groupes définis par \texttt{mlst\_group} ;
+    \item les isolats dont le MLST est \texttt{unknown} sont traités comme des groupes individuels, un par identifiant \texttt{sra}.
+\end{itemize}
+
+Le couple (validation, test) est choisi parmi les $6 \times 5$ combinaisons possibles pour se rapprocher des proportions cible $70/15/15$ et du taux global de résistance. La graine est fixée à $42$ pour la reproductibilité.
+
+\begin{keybox}[Propriété essentielle]
+Aucun groupe MLST connu n'apparaît dans deux splits différents. Le test est donc un véritable hold-out de lignages, et non une simple répartition aléatoire d'isolats.
+\end{keybox}
+
+\subsection{Tailles et composition des splits}
+
+\begin{table}[H]
+\centering
+\caption{Découpage train/validation/test groupé par MLST.}
+\label{tab:splits}
+\begin{tabular}{lrrrrr}
+\toprule
+\textbf{Split} & \textbf{Isolats} & \textbf{Résistants} & \textbf{Taux R} & \textbf{Groupes} & \textbf{dont unknown} \\
+\midrule
+Train & $4\,074$ & $975$ & $23{,}93\,\%$ & $520$ & $252$ \\
+Validation & $932$ & $156$ & $16{,}74\,\%$ & $157$ & $78$ \\
+Test & $929$ & $154$ & $16{,}58\,\%$ & $151$ & $76$ \\
+\midrule
+\textbf{Total} & $\mathbf{5\,935}$ & $\mathbf{1\,285}$ & $\mathbf{21{,}65\,\%}$ & -- & $406$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Le taux de résistance est plus élevé dans le train ($23{,}9\,\%$) que dans la validation et le test ($\approx 16{,}7\,\%$). Cette différence est une conséquence de la structure des groupes MLST : certains grands groupes résistants sont concentrés dans le train. Il serait dangereux de « rééquilibrer » artificiellement les splits en cassant les groupes, car on réintroduirait de la fuite. Il faut donc en tenir compte dans l'interprétation des métriques.
+
+\subsection{Pourquoi trois ensembles ?}
+
+\begin{itemize}[leftmargin=1.2em]
+    \item \textbf{Train} : ajustement des paramètres du modèle.
+    \item \textbf{Validation} : choix des hyperparamètres, de la régularisation, du seuil de décision et de l'arrêt précoce.
+    \item \textbf{Test} : évaluation finale, une seule fois, après gel des choix.
+\end{itemize}
+
+Le test ne doit jamais servir à sélectionner un modèle. Sinon, il devient une seconde validation et la performance annoncée n'est plus une estimation honnête de la généralisation.
+
+% ==============================================================================
+\section{Démarche en Machine Learning}
+% ==============================================================================
+
+\subsection{Formalisation du problème}
+
+On dispose d'une matrice \(X \in \{0,1\}^{N \times P}\) et d'un vecteur \(y \in \{0,1\}^N\). On cherche une fonction \(f_\theta : \{0,1\}^P \to [0,1]\) qui estime la probabilité de résistance :
+\[
+\hat p_i = f_\theta(x_i) \approx \mathbb{P}(y_i = 1 \mid x_i).
+\]
+La décision binaire est obtenue par seuillage :
+\[
+\hat y_i =
+\begin{cases}
+1 & \text{si } \hat p_i \ge \tau,\\
+0 & \text{sinon},
+\end{cases}
+\]
+où \(\tau\) est le seuil de décision. Le choix de \(\tau\) est un choix \emph{métier} : favoriser le rappel (ne pas manquer de résistants) ou la précision (limiter les fausses alarmes).
+
+\subsection{Régression logistique}
+
+La régression logistique est le modèle de référence linéaire :
+\[
+\hat p_i = \sigma(w^\top x_i + b) = \frac{1}{1 + \exp\left(-(w^\top x_i + b)\right)}.
+\]
+Elle est entraînée en minimisant la log-vraisemblance négative régularisée :
+\[
+\mathcal{L}(w,b)
+= -\frac{1}{N}\sum_{i=1}^N
+\left[
+y_i \log \hat p_i + (1-y_i)\log(1-\hat p_i)
+\right]
++ \lambda \|w\|_2^2.
+\]
+Le terme \(\lambda \|w\|_2^2\) est une régularisation L2 qui limite la magnitude des coefficients et réduit le sur-apprentissage.
+
+\paragraph{Justification.}
+La régression logistique est simple, rapide, stable et interprétable : le coefficient \(w_j\) correspond à la variation du log-odds de résistance lorsque la variable \(j\) passe de $0$ à $1$. Elle fournit une base honnête pour juger si des modèles plus complexes apportent un gain réel. Si un modèle complexe ne fait pas mieux, il n'est pas justifié de l'utiliser.
+
+\paragraph{Limite.}
+Le modèle additif ne capture pas automatiquement les interactions entre mutations. Pour y répondre dans la démarche, nous ajoutons explicitement des termes d'interaction (ci-dessous) et nous comparons à des modèles d'arbres et à un MLP, qui les capturent de façon non paramétrique.
+
+\subsection{Régression logistique avec interactions QRDR}
+
+Pour tester l'épistasie entre les mutations majeures de la ciprofloxacine, nous enrichissons la LogReg SNP-only avec des termes d'interaction deux à deux entre les variants QRDR les plus fréquents, notamment :
+\begin{itemize}[leftmargin=1.2em]
+    \item \texttt{parC} Ser80Ile $\times$ \texttt{gyrA} Ser83Leu ;
+    \item \texttt{parC} Ser80Ile $\times$ \texttt{gyrA} Asp87Asn ;
+    \item \texttt{gyrA} Ser83Leu $\times$ \texttt{gyrA} Asp87Asn.
+\end{itemize}
+Le modèle devient :
+\[
+\hat p_i = \sigma\!\left(
+b + \sum_j w_j x_{ij} + \sum_{(j,k)\in\mathcal{I}} w_{jk}\, x_{ij}x_{ik}
+\right),
+\]
+où \(\mathcal{I}\) est l'ensemble des paires d'interaction retenues. Les coefficients \(w_{jk}\) s'interprètent comme un surplus (ou un déficit) de log-odds lorsque les deux mutations coexistent.
+
+\paragraph{Place dans la démarche.}
+Cette expérience est \textbf{obligatoire} dans le protocole : elle répond directement à l'intention Arcadia « interactions gène--gène », reste interprétable, et fournit un point de comparaison aux arbres / MLP qui modélisent les interactions sans les nommer.
+
+\subsection{Forêt aléatoire}
+
+Une forêt aléatoire \citep{breiman2001} combine \(B\) arbres de décision entraînés sur des échantillons bootstrap et des sous-ensembles aléatoires de variables. Chaque arbre partitionne l'espace selon des seuils qui maximisent une diminution d'impureté, par exemple l'indice de Gini :
+\[
+G(t) = 1 - \sum_{k=0}^{1} p_{k|t}^2,
+\]
+où \(p_{k|t}\) est la proportion de classe \(k\) dans le nœud \(t\). La prédiction agrège les arbres :
+\[
+\hat p_i = \frac{1}{B}\sum_{b=1}^B \hat p_{i,b}.
+\]
+
+\paragraph{Justification.}
+Les forêts capturent des relations non linéaires et des interactions, sont robustes aux valeurs aberrantes et fournissent une importance de variables par diminution moyenne d'impureté. Elles sont un bon représentant des modèles d'ensemble « classiques ».
+
+\paragraph{Limites.}
+Avec beaucoup de variables corrélées, l'importance peut être diluée entre variables redondantes. Les forêts peuvent aussi sur-apprendre lorsque les arbres sont très profonds, surtout avec un grand nombre de variables et un échantillon modéré. Il faut donc régler \texttt{max\_depth}, \texttt{min\_samples\_leaf}, \texttt{max\_features} et éventuellement utiliser des poids de classe.
+
+\subsection{XGBoost}
+
+XGBoost \citep{chen2016} est un modèle de \emph{gradient boosting} qui construit séquentiellement des arbres en corrigeant les erreurs des arbres précédents. À l'étape \(t\), on minimise :
+\[
+\mathcal{L}^{(t)}
+= \sum_{i=1}^N
+\ell\left(y_i, \hat y_i^{(t-1)} + f_t(x_i)\right)
++ \Omega(f_t),
+\]
+avec
+\[
+\Omega(f) = \gamma T + \frac{1}{2}\lambda \|w\|^2,
+\]
+où \(T\) est le nombre de feuilles, \(w\) les poids des feuilles, \(\gamma\) un seuil de complexité et \(\lambda\) une régularisation L2.
+
+L'objectif est approché au second ordre :
+\[
+\mathcal{L}^{(t)}
+\approx
+\sum_{i=1}^N
+\left[
+g_i f_t(x_i) + \frac{1}{2} h_i f_t(x_i)^2
+\right]
++ \Omega(f_t),
+\]
+où \(g_i\) et \(h_i\) sont les dérivées première et seconde de la perte par rapport à la prédiction courante. Le gain d'une division entre un nœud parent \(I\) et deux enfants \(L\) et \(R\) s'écrit :
+\[
+\mathcal{G}
+=
+\frac{1}{2}
+\left[
+\frac{(\sum_{i\in L} g_i)^2}{\sum_{i\in L} h_i + \lambda}
++
+\frac{(\sum_{i\in R} g_i)^2}{\sum_{i\in R} h_i + \lambda}
+-
+\frac{(\sum_{i\in I} g_i)^2}{\sum_{i\in I} h_i + \lambda}
+\right]
+- \gamma.
+\]
+
+\paragraph{Justification.}
+XGBoost est généralement très performant sur les données tabulaires, gère bien les interactions et les variables corrélées, et offre un contrôle fin du sur-apprentissage via la profondeur, le taux d'apprentissage, la régularisation et l'arrêt précoce. C'est un excellent candidat pour établir un plafond de performance réaliste.
+
+\paragraph{Paramètres à explorer.}
+\begin{itemize}[leftmargin=1.2em, nosep]
+    \item \texttt{n\_estimators}, \texttt{max\_depth}, \texttt{learning\_rate} ;
+    \item \texttt{subsample}, \texttt{colsample\_bytree}, \texttt{min\_child\_weight} ;
+    \item \texttt{gamma}, \texttt{reg\_lambda}, \texttt{reg\_alpha}, \texttt{scale\_pos\_weight}.
+\end{itemize}
+L'arrêt précoce sur la validation évite de multiplier les arbres inutilement.
+
+\subsection{Jeux de caractéristiques et ablations}
+
+Pour comprendre d'où vient le signal, nous comparons plusieurs représentations :
+\begin{enumerate}[leftmargin=1.4em]
+    \item \textbf{Complet} : $20\,731$ variables pangénomiques $+$ $198$ SNP $= 20\,929$ variables ;
+    \item \textbf{SNP seuls} : $198$ SNP QRDR et régulateurs ;
+    \item \textbf{Pangénome seul} : $20\,731$ variables de présence/absence ;
+    \item \textbf{Top-$k$} : sélection des $k$ variables les plus importantes selon un modèle entraîné uniquement sur le train, avec $k \in \{100, 500, 2000\}$.
+\end{enumerate}
+
+Cette ablation est essentielle : elle permet de distinguer un gain dû à une meilleure modélisation d'un gain dû simplement à l'ajout de variables biologiquement pertinentes.
+
+\subsection{Gestion du déséquilibre}
+
+Plusieurs stratégies sont comparées :
+\begin{itemize}[leftmargin=1.2em]
+    \item pas de pondération ;
+    \item pondération de la classe minoritaire (\texttt{class\_weight="balanced"} ou \texttt{scale\_pos\_weight}) ;
+    \item ajustement du seuil de décision sur la validation ;
+    \item éventuellement sur-échantillonnage de la classe minoritaire, mais uniquement dans le train, jamais avant le split.
+\end{itemize}
+
+Le sur-échantillonnage naïf peut créer des doublons et favoriser le sur-apprentissage. La pondération et le seuillage sont généralement plus simples et plus contrôlables.
+
+% ==============================================================================
+\section{Démarche en Deep Learning}
+% ==============================================================================
+
+\subsection{Un MLP est-il pertinent ?}
+\label{sec:pertinence_mlp}
+
+Un perceptron multicouche (MLP) est un approximateur universel de fonctions continues. Il peut modéliser des interactions non linéaires entre variables. Sur des données tabulaires, il est cependant moins naturel qu'un modèle à base d'arbres : il ne possède aucune structure inductive adaptée aux colonnes, qui sont traitées comme un vecteur non ordonné.
+
+Un MLP est néanmoins pertinent pour :
+\begin{itemize}[leftmargin=1.2em]
+    \item comparer une famille neuronale aux modèles classiques ;
+    \item tester si une représentation non linéaire apprend mieux les interactions ;
+    \item servir de support pédagogique pour PyTorch, la régularisation et l'arrêt précoce ;
+    \item produire des embeddings intermédiaires exploitables pour l'analyse.
+\end{itemize}
+
+\subsection{Architecture et entraînement}
+
+Une architecture raisonnable pour $198$ SNP est :
+\[
+x \in \mathbb{R}^{198}
+\;\longrightarrow\;
+h_1 = \phi(W_1 x + b_1) \in \mathbb{R}^{64}
+\;\longrightarrow\;
+h_2 = \phi(W_2 h_1 + b_2) \in \mathbb{R}^{32}
+\;\longrightarrow\;
+\hat p = \sigma(w_3^\top h_2 + b_3),
+\]
+où \(\phi\) est une activation ReLU. On ajoute éventuellement :
+\begin{itemize}[leftmargin=1.2em]
+    \item du dropout \citep{srivastava2014} pour réduire la co-adaptation des neurones ;
+    \item de la normalisation par lots \citep{ioffe2015} pour stabiliser l'entraînement ;
+    \item une régularisation L2 (\texttt{weight\_decay}) ;
+    \item un arrêt précoce sur la perte de validation.
+\end{itemize}
+
+La perte est une entropie croisée binaire avec logits :
+\[
+\mathcal{L}
+=
+-\frac{1}{N}\sum_{i=1}^N
+\left[
+w_+ \, y_i \log \hat p_i
++
+(1-y_i)\log(1-\hat p_i)
+\right],
+\]
+où \(w_+ > 1\) est un poids pour la classe résistante. Cette pondération augmente le coût des faux négatifs, ce qui est souvent souhaitable en santé.
+
+L'optimisation utilise Adam \citep{kingma2015}, avec un taux d'apprentissage initial de l'ordre de \(10^{-3}\), une taille de lot de $64$ ou $128$, et un nombre maximal d'époques modéré. Le meilleur modèle est sélectionné sur la validation, puis évalué sur le test.
+
+\subsection{Autoencodeur : apprentissage de représentation (\emph{phenotype encoder})}
+
+L'étude Arcadia évoque un \emph{phenotype encoder}. Dans notre démarche, l'équivalent opérationnel est un \textbf{autoencodeur génotypique} suivi d'un classifieur : on apprend d'abord une représentation comprimée des variables, puis on prédit le phénotype à partir de cette représentation.
+
+Un autoencodeur est un réseau non supervisé :
+\[
+z = f_\theta(x), \qquad \hat x = g_\phi(z),
+\]
+entraîné en minimisant l'erreur de reconstruction :
+\[
+\mathcal{L}_{AE}
+=
+\frac{1}{N}\sum_{i=1}^N
+\|x_i - \hat x_i\|_2^2.
+\]
+La couche latente \(z\) sert ensuite d'entrée à une régression logistique ou à un petit MLP. Le protocole compare systématiquement :
+\begin{itemize}[leftmargin=1.2em]
+    \item les variables brutes (SNP, pangénome, complet, top-$k$) ;
+    \item une réduction de dimension linéaire (PCA) ;
+    \item une réduction non linéaire (autoencodeur) + classifieur sur l'embedding.
+\end{itemize}
+
+Cette expérience fait partie du \textbf{cœur Deep Learning} de la démarche : elle teste si une représentation apprise apporte un gain par rapport aux variables brutes ou à la PCA, sans dépendre d'un modèle de fondation.
+
+\subsection{Interprétabilité de l'autoencodeur}
+\label{sec:ae_interpretabilite}
+
+Un autoencodeur ne se prête pas aux outils conçus pour les modèles supervisés : il ne prédit pas le phénotype, ses poids ne sont pas directement associés aux variables d'entrée, et TreeSHAP ne s'applique pas (ce n'est pas un modèle d'arbres). L'interprétation doit donc distinguer deux questions différentes :
+\begin{enumerate}[leftmargin=1.4em]
+    \item \textbf{que représente la couche latente \(z\) ?} C'est une question sur la \emph{représentation}.
+    \item \textbf{qu'est-ce qui pilote la prédiction du pipeline ?} C'est une question sur le couple autoencodeur + classifieur.
+\end{enumerate}
+
+\paragraph{Interpréter la représentation.}
+\begin{itemize}[leftmargin=1.2em]
+    \item \textbf{Projection de l'espace latent} (PCA ou t-SNE de \(z\)) colorée successivement par le MLST, par le phénotype et par le nombre de mutations QRDR. C'est le test le plus informatif : si \(z\) se sépare d'abord par lignage, l'autoencodeur encode la structure de population ; s'il se sépare par profil QRDR, il encode le mécanisme.
+    \item \textbf{Sondage du décodeur} : pour chaque dimension latente, examiner les poids du décodeur vers les variables d'entrée afin d'étiqueter les unités (« cette dimension suit \texttt{parC} Ser80Ile »). C'est l'équivalent non linéaire des \emph{loadings} d'une ACP.
+    \item \textbf{Erreur de reconstruction par isolat} : un isolat mal reconstruit est un génome atypique (lignage rare, plasmide, assemblage douteux). Cette information sert directement à l'analyse d'erreurs.
+    \item \textbf{Comparaison avec la PCA} : aligner les sous-espaces de l'autoencodeur et de la PCA (corrélation canonique ou Procrustes) pour déterminer si le non-linéaire apporte des directions réellement nouvelles.
+\end{itemize}
+
+\paragraph{Interpréter la prédiction.}
+Sur le pipeline complet (autoencodeur puis classifieur) : gradients intégrés ou KernelSHAP, ablation d'une dimension latente avec mesure de la chute de PR-AUC, et LIME local sur quelques cas d'erreur. Ces outils sont des \emph{approximations} sur un réseau, contrairement à TreeSHAP qui est exact sur les arbres.
+
+\begin{warnbox}[Risque principal : un encodeur de lignage]
+Dans un pangénome, la source de variance dominante est la structure de population. Un autoencodeur risque donc de compresser d'abord le \textbf{lignage} plutôt que le mécanisme de résistance. Le test de projection colorée doit être réalisé \emph{avant} toute conclusion biologique sur \(z\).
+\end{warnbox}
+
+\paragraph{Place dans la démarche.}
+Comme pour les autres modèles, l'interprétation n'est réalisée que si l'autoencodeur est \textbf{retenu} à l'issue de la comparaison avec la PCA et les variables brutes (section~\ref{sec:pertinence_mlp}). Dans le cas contraire, l'effort d'interprétation est investi sur le modèle finalement sélectionné.
+
+Les approches volontairement exclues du périmètre (CNN sur matrice tabulaire, modèles de fondation, multi-tâches systématique) sont justifiées en annexe~\ref{annexe:hors-perimetre}.
+
+% ==============================================================================
+\section{Protocole d'évaluation}
+% ==============================================================================
+
+\subsection{Matrice de confusion et métriques}
+
+Pour un seuil \(\tau\), on définit :
+\begin{itemize}[leftmargin=1.2em]
+    \item TP : vrais positifs (résistants correctement prédits) ;
+    \item FP : faux positifs (sensibles prédits résistants) ;
+    \item FN : faux négatifs (résistants prédits sensibles) ;
+    \item TN : vrais négatifs (sensibles correctement prédits).
+\end{itemize}
+
+Les métriques principales sont :
+\[
+\text{Précision} = \frac{TP}{TP+FP},
+\qquad
+\text{Rappel} = \frac{TP}{TP+FN},
+\]
+\[
+F_1 = \frac{2 \times \text{Précision} \times \text{Rappel}}{\text{Précision} + \text{Rappel}},
+\]
+\[
+\text{Balanced accuracy}
+=
+\frac{1}{2}
+\left(
+\frac{TP}{TP+FN}
++
+\frac{TN}{TN+FP}
+\right).
+\]
+
+L'exactitude est :
+\[
+\text{Accuracy} = \frac{TP+TN}{TP+TN+FP+FN}.
+\]
+
+Pour évaluer le classement indépendamment du seuil, on utilise la courbe précision-rappel et son aire (PR-AUC), ainsi que la courbe ROC et son aire (ROC-AUC). La PR-AUC est particulièrement informative lorsque la classe positive est minoritaire \citep{saito2015}. L'AP (average precision) est estimée par :
+\[
+\text{AP} = \sum_{n} (R_n - R_{n-1}) P_n,
+\]
+où \(P_n\) et \(R_n\) sont la précision et le rappel au \(n\)-ième seuil.
+
+La calibration est évaluée par le score de Brier :
+\[
+\text{Brier} = \frac{1}{N}\sum_{i=1}^N (\hat p_i - y_i)^2.
+\]
+Un bon score de Brier indique que les probabilités sont globalement fiables, pas seulement bien classées.
+
+\subsection{Pourquoi l'exactitude seule est trompeuse}
+
+Dans le split retenu, le classifieur majoritaire « toujours sensible » obtient :
+\[
+\text{accuracy}_{\text{val}} = \frac{776}{932} \approx 83{,}3\,\%,
+\qquad
+\text{accuracy}_{\text{test}} = \frac{775}{929} \approx 83{,}4\,\%.
+\]
+Un modèle qui atteindrait $84\,\%$ d'exactitude pourrait donc n'avoir qu'un rappel très faible sur les résistants. C'est exactement ce que nous observons avec la régression logistique complète : $84{,}5\,\%$ d'exactitude en validation, mais seulement $31{,}4\,\%$ de rappel. Un tel modèle rate plus des deux tiers des résistants.
+
+\subsection{Choix du seuil}
+
+Le seuil par défaut $\tau = 0{,}5$ n'est pas nécessairement optimal. Nous choisissons \(\tau\) sur la validation selon un critère explicite :
+\begin{itemize}[leftmargin=1.2em]
+    \item maximiser le F1 de la classe résistante ;
+    \item ou atteindre un rappel cible (par exemple $90\,\%$) tout en maximisant la précision ;
+    \item ou minimiser le coût métier \(C = c_{FN} FN + c_{FP} FP\), si des coûts sont disponibles.
+\end{itemize}
+
+Le seuil choisi est ensuite \textbf{gelé} et appliqué au test. Il ne doit pas être réoptimisé sur le test.
+
+\subsection{Incertitude et variabilité}
+
+Avec $154$ résistants dans le test, les intervalles de confiance sont larges. Nous rapportons :
+\begin{itemize}[leftmargin=1.2em]
+    \item des intervalles de confiance bootstrap à $95\,\%$ pour les métriques ;
+    \item la moyenne et l'écart-type sur plusieurs graines aléatoires ;
+    \item les résultats par sous-groupe de lignage (MLST / clonal complex).
+\end{itemize}
+
+Une différence de $1$ ou $2$ points de PR-AUC entre deux modèles n'est pas nécessairement significative. Il faut éviter de surinterpréter des écarts faibles.
+
+\subsection{Analyse des erreurs et des sous-groupes}
+
+Après l'évaluation globale, la démarche inclut une \textbf{analyse d'erreurs} sur le test (et, pour exploration, sur la validation) :
+\begin{enumerate}[leftmargin=1.4em]
+    \item recenser les faux négatifs (résistants manqués) et les faux positifs ;
+    \item les stratifier par lignage MLST et, lorsque c'est possible, par profil de mutations QRDR ;
+    \item vérifier si les erreurs concentrent des mécanismes absents du train, des lignages rares, ou des cas sans mutation QRDR classique ;
+    \item pour un échantillon de cas critiques, produire une explication locale (TreeSHAP ou LIME) afin de comprendre quelles variables ont poussé la décision.
+\end{enumerate}
+Cette analyse relie performance et biologie : elle complète l'étude des interactions et la validation QRDR.
+
+\subsection{Diagnostic du sur-apprentissage}
+
+Le sur-apprentissage se diagnostique en comparant :
+\[
+\Delta_{\text{gen}} = \text{PR-AUC}_{\text{train}} - \text{PR-AUC}_{\text{val/test}}.
+\]
+Un modèle qui atteint $1{,}000$ en train et $0{,}550$ en validation est fortement sur-appris ou, au minimum, mal calibré pour la classe minoritaire. Un modèle qui atteint $0{,}990$ en train et $0{,}950$ en test généralise correctement.
+
+Nous traçons également des courbes d'apprentissage (performance en fonction de la taille du train) pour distinguer :
+\begin{itemize}[leftmargin=1.2em]
+    \item un problème de \emph{biais} (modèle trop simple, performance faible partout) ;
+    \item un problème de \emph{variance} (performance élevée en train, faible en validation) ;
+    \item un problème de \emph{données} (performance plafonnée même avec plus de données).
+\end{itemize}
+
+% ==============================================================================
+\section{Interprétabilité et validation biologique}
+% ==============================================================================
+
+\subsection{Pourquoi interpréter ?}
+
+Un modèle prédictif utile en microbiologie ne doit pas seulement être performant : il doit aider à comprendre les mécanismes. L'interprétabilité poursuit trois objectifs :
+\begin{enumerate}[leftmargin=1.4em]
+    \item vérifier que le modèle s'appuie sur des mécanismes biologiques plausibles ;
+    \item détecter des artefacts ou des marqueurs de lignage ;
+    \item fournir des hypothèses aux biologistes.
+\end{enumerate}
+
+\subsection{Quand interpréter dans la démarche ?}
+
+L'interprétation n'intervient \textbf{ni pendant l'entraînement, ni à la place de l'évaluation}. Elle vient \textbf{après} :
+\begin{enumerate}[leftmargin=1.4em]
+    \item entraînement des modèles (régression logistique, forêt aléatoire, XGBoost, MLP) sur le train ;
+    \item sélection des hyperparamètres et du seuil sur la validation ;
+    \item évaluation finale sur le test (PR-AUC, rappel, F1, calibration) ;
+    \item \textbf{puis} analyse des importances et explications locales (SHAP, éventuellement LIME) sur le modèle retenu.
+\end{enumerate}
+
+On applique SHAP / LIME en priorité au \textbf{meilleur modèle d'arbres} (forêt aléatoire ou XGBoost) et, si besoin, au MLP pour comparaison. Les coefficients de la régression logistique restent le baseline d'interprétabilité le plus simple. L'autoencodeur fait l'objet d'un traitement spécifique, car il ne prédit pas directement le phénotype : voir la section~\ref{sec:ae_interpretabilite}.
+
+\subsection{Outils selon les modèles}
+
+\begin{table}[H]
+\centering
+\caption{Outils d'interprétabilité associés aux familles de modèles.}
+\label{tab:interpretability}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+\textbf{Modèle} & \textbf{Outils principaux} \\
+\midrule
+Régression logistique & coefficients, odds ratios, intervalles de confiance \\
+Forêt aléatoire & importance (impureté), permutation, TreeSHAP, LIME \\
+XGBoost & gain, couverture, fréquence, permutation, TreeSHAP, LIME \\
+MLP & importance par permutation, gradients intégrés, KernelSHAP, LIME \\
+Autoencodeur (+ classifieur) & espace latent (projection colorée, sondage du décodeur), erreur de reconstruction, gradients intégrés / KernelSHAP sur le pipeline, ablation de dimensions, LIME local \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{SHAP : ce que cela permet}
+
+SHAP (\textit{SHapley Additive exPlanations}) \citep{lundberg2017} attribue à chaque variable une contribution \(\phi_j\) à la prédiction d'un isolat, de sorte que
+\[
+\hat f(x) = \phi_0 + \sum_{j=1}^{P} \phi_j.
+\]
+Pour les forêts et XGBoost, \textbf{TreeSHAP} calcule ces contributions de façon exacte et efficace.
+
+\paragraph{Ce que SHAP nous apporte.}
+\begin{itemize}[leftmargin=1.2em]
+    \item une \textbf{importance globale} (moyenne des \(|\phi_j|\)) pour classer les SNP et contigs qui pilotent le modèle ;
+    \item une \textbf{explication locale} par isolat : pourquoi cette souche est prédite résistante ou sensible ;
+    \item une lecture du \textbf{signe} de l'effet (mutation qui pousse vers la résistance ou vers la sensibilité) ;
+    \item une confrontation directe aux mutations QRDR attendues (\texttt{parC} Ser80Ile, \texttt{gyrA} Ser83Leu, Asp87Asn, etc.).
+\end{itemize}
+
+\paragraph{Protocole prévu.}
+Sur le modèle d'arbres retenu : (i)~importances natives (impureté / gain) ; (ii)~importance par permutation sur la validation ; (iii)~TreeSHAP sur un échantillon de la validation et du test ; (iv)~synthèse du top des variables et validation biologique.
+
+\subsection{LIME : rôle complémentaire}
+
+LIME (\textit{Local Interpretable Model-agnostic Explanations}) \citep{ribeiro2016} approxime localement le modèle par un modèle linéaire sparse autour d'un isolat. Contrairement à TreeSHAP, LIME est \textbf{agnostique} du type de modèle : il s'applique aussi bien à une forêt, à XGBoost ou à un MLP.
+
+\paragraph{Ce que LIME nous apporte.}
+\begin{itemize}[leftmargin=1.2em]
+    \item une explication locale rapide, utile pour auditer quelques cas critiques (faux négatifs, faux positifs) ;
+    \item une vérification croisée avec SHAP : si les deux méthodes mettent en avant les mêmes SNP QRDR, la confiance dans l'interprétation augmente.
+\end{itemize}
+
+\paragraph{Limite.}
+LIME dépend du voisinage et de la perturbation ; il est moins stable que TreeSHAP sur des arbres. Nous le traitons donc comme \textbf{complément}, pas comme outil principal pour RF / XGBoost.
+
+\subsection{Précautions}
+
+\begin{warnbox}[Corrélation n'est pas causalité]
+Une variable importante pour le modèle n'est pas nécessairement une cause de la résistance. Elle peut être un marqueur de lignage, un gène accessoire corrélé, ou un proxy d'un mécanisme non observé. L'interprétation doit être confrontée à la littérature et, idéalement, à des expériences fonctionnelles.
+\end{warnbox}
+
+De plus, lorsque des variables sont fortement corrélées, l'importance se répartit entre elles. Une mutation connue peut avoir une importance individuelle faible simplement parce qu'une autre variable corrélée porte une partie du signal.
+
+\subsection{Validation biologique attendue}
+
+Nous comparons les variables les plus importantes aux mécanismes connus :
+\begin{itemize}[leftmargin=1.2em]
+    \item \texttt{parC} Ser80Ile ;
+    \item \texttt{gyrA} Ser83Leu ;
+    \item \texttt{gyrA} Asp87Asn/Tyr/His ;
+    \item éventuellement \texttt{parC} Glu84Val/Lys/Gly et les régulateurs \texttt{marR}, \texttt{acrR}, \texttt{soxR}.
+\end{itemize}
+
+Si le modèle s'appuie d'abord sur ces mutations, c'est un signe de validité biologique. Si les premières variables sont des gènes accessoires non annotés, il faut investiguer un possible marqueur de lignage ou un artefact.
+
+% ==============================================================================
+\section{Plan expérimental}
+% ==============================================================================
+
+\subsection{Phases du projet}
+
+\begin{table}[H]
+\centering
+\caption{Plan de travail et livrables.}
+\label{tab:plan}
+\begin{tabularx}{\textwidth}{clX}
+\toprule
+\textbf{Phase} & \textbf{Objectif} & \textbf{Livrables} \\
+\midrule
+0 & Audit des données & dimensions, manquants, distribution de $y$, doublons, groupes MLST \\
+1 & Construction du jeu enrichi & matrice SNP, manifeste, documentation, jeu de base préservé \\
+2 & Découpage groupé & splits train/validation/test, absence de chevauchement MLST \\
+3 & Baselines ML & LogReg, LogReg+interactions QRDR, forêt aléatoire, XGBoost \\
+4 & Deep Learning & MLP (SNP, top-$k$, complet), autoencodeur + classifieur, comparaison PCA \\
+5 & Ablations & SNP seuls, pangénome seul, complet, top-$k$, avec/sans pondération \\
+6 & Interprétabilité & coefficients, importances, TreeSHAP, LIME, confrontation QRDR \\
+7 & Analyse d'erreurs & faux négatifs/positifs par lignage et par mécanisme \\
+8 & Robustesse & bootstrap $95\,\%$, plusieurs graines, calibration, seuil sur validation \\
+9 & Rédaction & rapport, figures, slides, dépôt reproductible \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Matrice des expériences}
+
+\begin{table}[H]
+\centering
+\caption{Combinaisons minimales à évaluer.}
+\label{tab:experiments}
+\begin{tabularx}{\textwidth}{lXXXX}
+\toprule
+\textbf{Représentation} & \textbf{LogReg} & \textbf{Forêt aléatoire} & \textbf{XGBoost} & \textbf{MLP} \\
+\midrule
+SNP seuls ($198$) & oui & oui & oui & oui \\
+Pangénome seul ($20\,731$) & oui & oui & oui & oui \\
+Complet ($20\,929$) & oui & oui & oui & oui \\
+Top-$k$ ($k=500$) & oui & oui & oui & oui \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Expériences complémentaires \textbf{incluses dans la démarche} :
+\begin{itemize}[leftmargin=1.2em]
+    \item LogReg SNP-only \emph{avec} interactions QRDR majeures ;
+    \item autoencodeur puis classifieur sur l'embedding, comparé à PCA + classifieur ;
+    \item TreeSHAP (et LIME sur cas d'erreur) sur le meilleur modèle d'arbres ;
+    \item analyse des erreurs par lignage MLST et par profil QRDR.
+\end{itemize}
+
+Chaque cellule doit être évaluée avec :
+\begin{itemize}[leftmargin=1.2em]
+    \item les mêmes splits ;
+    \item plusieurs graines (au moins $3$ pour les modèles stochastiques) ;
+    \item les mêmes métriques ;
+    \item le seuil choisi uniquement sur la validation.
+\end{itemize}
+
+\subsection{Reproductibilité}
+
+Les expériences doivent être reproductibles :
+\begin{itemize}[leftmargin=1.2em]
+    \item graine fixée pour le split et pour les modèles ;
+    \item sauvegarde des hyperparamètres et des versions de bibliothèques ;
+    \item sauvegarde des prédictions de validation et de test ;
+    \item script unique ou notebook exécutable de bout en bout ;
+    \item documentation des fichiers d'entrée et de sortie.
+\end{itemize}
+
+\subsection{Extensions au-delà du cœur de la démarche}
+
+Les éléments ci-dessus (baselines, interactions QRDR, MLP, autoencodeur, SHAP/LIME, analyse d'erreurs, bootstrap, calibration) constituent le \textbf{périmètre méthodologique retenu}. Au-delà, et seulement si le temps le permet :
+\begin{enumerate}[leftmargin=1.4em]
+    \item \textbf{Validation croisée groupée} multi-folds / multi-graines pour estimer la variabilité du split.
+    \item \textbf{Validation externe} sur une cohorte indépendante.
+    \item \textbf{Modèle multi-tâches} : plusieurs antibiotiques avec un tronc commun.
+    \item \textbf{Baseline BSLMM/GEMMA} pour se comparer plus directement à Arcadia \citep{patton2025,zhou2013}.
+\end{enumerate}
+
+Les approches explicitement \emph{non retenues} (CNN sur données tabulaires, modèles de fondation, etc.) sont détaillées en annexe~\ref{annexe:hors-perimetre}.
+
+% ==============================================================================
+\section{Résultats préliminaires et lecture critique}
+% ==============================================================================
+
+\subsection{Modèles complets}
+
+Les résultats suivants ont été obtenus avec le split groupé par MLST, les hyperparamètres par défaut et un seuil de $0{,}5$. Ils sont préliminaires et servent à valider la démarche.
+
+\begin{table}[H]
+\centering
+\caption{Résultats des modèles complets ($20\,929$ variables).}
+\label{tab:results_full}
+\small
+\begin{tabular}{llrrrrrr}
+\toprule
+\textbf{Modèle} & \textbf{Split} & \textbf{PR-AUC} & \textbf{ROC-AUC} & \textbf{Accuracy} & \textbf{Rappel R} & \textbf{F1 R} & \textbf{Bal. acc.} \\
+\midrule
+LogReg & Train & $1{,}000$ & $1{,}000$ & $1{,}000$ & $1{,}000$ & $1{,}000$ & $1{,}000$ \\
+LogReg & Validation & $0{,}554$ & $0{,}844$ & $0{,}845$ & $0{,}314$ & $0{,}405$ & $0{,}633$ \\
+LogReg & Test & $0{,}830$ & $0{,}921$ & $0{,}926$ & $0{,}669$ & $0{,}749$ & $0{,}823$ \\
+\midrule
+RF & Train & $1{,}000$ & $1{,}000$ & $1{,}000$ & $1{,}000$ & $1{,}000$ & $1{,}000$ \\
+RF & Validation & $0{,}803$ & $0{,}940$ & $0{,}897$ & $0{,}385$ & $0{,}556$ & $0{,}692$ \\
+RF & Test & $0{,}833$ & $0{,}934$ & $0{,}930$ & $0{,}604$ & $0{,}741$ & $0{,}799$ \\
+\midrule
+XGBoost & Train & $1{,}000$ & $1{,}000$ & $1{,}000$ & $1{,}000$ & $1{,}000$ & $1{,}000$ \\
+XGBoost & Validation & $\mathbf{0{,}969}$ & $\mathbf{0{,}986}$ & $\mathbf{0{,}974}$ & $\mathbf{0{,}917}$ & $\mathbf{0{,}923}$ & $\mathbf{0{,}951}$ \\
+XGBoost & Test & $\mathbf{0{,}951}$ & $\mathbf{0{,}972}$ & $\mathbf{0{,}952}$ & $\mathbf{0{,}916}$ & $\mathbf{0{,}862}$ & $\mathbf{0{,}937}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Comparaison des représentations}
+
+\begin{table}[H]
+\centering
+\caption{Effet de la représentation sur la performance (seuil $0{,}5$).}
+\label{tab:results_features}
+\small
+\begin{tabular}{llrrrr}
+\toprule
+\textbf{Représentation} & \textbf{Modèle} & \textbf{PR-AUC val} & \textbf{PR-AUC test} & \textbf{Rappel val} & \textbf{Rappel test} \\
+\midrule
+SNP seuls & LogReg & $0{,}961$ & $0{,}941$ & $0{,}910$ & $0{,}942$ \\
+SNP seuls & XGBoost & $0{,}948$ & $0{,}922$ & $0{,}936$ & $0{,}942$ \\
+Pangénome seul & LogReg & $0{,}512$ & $0{,}775$ & $0{,}308$ & $0{,}656$ \\
+Pangénome seul & XGBoost & $0{,}579$ & $0{,}810$ & $0{,}372$ & $0{,}643$ \\
+Complet & LogReg & $0{,}554$ & $0{,}830$ & $0{,}314$ & $0{,}669$ \\
+Complet & XGBoost & $\mathbf{0{,}969}$ & $\mathbf{0{,}951}$ & $0{,}917$ & $0{,}916$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Lecture des résultats}
+
+\paragraph{1. Tous les modèles atteignent $1{,}000$ en train.}
+Avec $20\,929$ variables pour $4\,074$ échantillons, les modèles ont assez de capacité pour mémoriser le train. Le score d'entraînement n'est donc pas un indicateur utile de qualité. Ce qui compte est l'écart avec la validation et le test.
+
+\paragraph{2. XGBoost est le meilleur modèle complet.}
+Il conserve un PR-AUC de $0{,}969$ en validation et $0{,}951$ en test, avec un rappel de $91{,}6\,\%$ sur le test. C'est le seul modèle complet qui reste solide sur les deux ensembles.
+
+\paragraph{3. La régression logistique complète et la forêt aléatoire sont piégées par le déséquilibre.}
+La régression logistique a une exactitude de $84{,}5\,\%$ en validation, mais un rappel de seulement $31{,}4\,\%$. La forêt aléatoire a une précision de $100\,\%$ en validation, mais un rappel de $38{,}5\,\%$ : elle prédit peu de positifs, mais ceux qu'elle prédit sont corrects. Ces deux comportements illustrent pourquoi l'exactitude et la précision seules sont insuffisantes.
+
+\paragraph{4. Le signal est concentré dans les $198$ SNP.}
+Une régression logistique sur $198$ SNP atteint $0{,}961$ de PR-AUC en validation et $0{,}941$ en test, avec un rappel de $94{,}2\,\%$ en test. C'est presque aussi bien que XGBoost complet, avec environ $100$ fois moins de variables. Le pangénome seul, en revanche, généralise moins bien ($0{,}512$/$0{,}579$ en validation) et semble apprendre des marqueurs de lignage.
+
+\paragraph{5. Le gain du modèle complexe est marginal.}
+XGBoost complet améliore le PR-AUC de test de $0{,}010$ par rapport à la régression logistique SNP-only, mais avec un rappel légèrement inférieur ($0{,}916$ contre $0{,}942$). Compte tenu de la taille du test ($154$ résistants), cet écart n'est probablement pas significatif. La conclusion pratique est qu'un modèle simple sur les SNP est un excellent baseline, et que la complexité doit être justifiée par un gain robuste, pas par une différence de quelques centièmes.
+
+\subsection{Interprétation préliminaire}
+
+Les variables les plus importantes de XGBoost (\emph{gain} natif, avant TreeSHAP) sont :
+\begin{itemize}[leftmargin=1.2em]
+    \item \texttt{SNP\_parC\_Ser80Ile} : $28{,}0\,\%$ ;
+    \item plusieurs contigs pangénomiques non annotés, chacun autour de $0{,}7$ à $4{,}1\,\%$ ;
+    \item \texttt{SNP\_gyrA\_Asp87Asn} : $1{,}8\,\%$ ;
+    \item \texttt{SNP\_gyrA\_Ser83Leu} : $0{,}8\,\%$.
+\end{itemize}
+
+Le modèle s'appuie d'abord sur une mutation QRDR connue, ce qui est biologiquement rassurant. Les contigs pangénomiques intercalés doivent être interprétés avec prudence : ils peuvent être des marqueurs de lignage, des gènes accessoires corrélés, ou des fragments non annotés. L'étape suivante prévue est TreeSHAP (et LIME sur quelques cas d'erreur) pour confirmer ces importances au niveau global et local.
+
+% ==============================================================================
+\section{Limites}
+% ==============================================================================
+
+\subsection{Limites méthodologiques}
+
+\begin{itemize}[leftmargin=1.2em]
+    \item \textbf{Taille du test} : $929$ isolats, dont $154$ résistants. Les intervalles de confiance sont larges.
+    \item \textbf{Un seul antibiotique} : les conclusions ne sont pas nécessairement transposables à d'autres molécules.
+    \item \textbf{Découpage par MLST, pas par phylogénie fine} : le MLST est un proxy de clonalité, mais il ne capture pas toute la structure phylogénétique.
+    \item \textbf{Pas de validation externe réalisée à ce stade} : le test provient de la même cohorte (prévue au plan expérimental).
+    \item \textbf{Seuil non optimisé} : les résultats présentés utilisent $\tau = 0{,}5$. Un seuil choisi sur la validation pourrait améliorer le rappel.
+    \item \textbf{Annotations incomplètes} : certains contigs pangénomiques ne sont pas annotés, ce qui limite l'interprétation.
+    \item \textbf{Variables corrélées} : l'importance des variables peut être répartie entre variables redondantes.
+\end{itemize}
+
+\subsection{Limites du Deep Learning}
+
+\begin{itemize}[leftmargin=1.2em]
+    \item Les données sont tabulaires et déjà construites et annotées ; l'avantage inductif des réseaux est limité.
+    \item Le jeu est de taille modérée ($5\,935$ isolats).
+    \item Les MLP sont moins interprétables que les modèles linéaires ou les arbres ; SHAP / LIME atténuent cette limite sans la supprimer.
+\end{itemize}
+
+Les approches hors périmètre et les raisons de leur exclusion sont regroupées en annexe~\ref{annexe:hors-perimetre}.
+
+% ==============================================================================
+\section{Conclusion}
+% ==============================================================================
+
+Ce rapport propose une démarche complète pour prédire la résistance à la ciprofloxacine chez \textit{E. coli} à partir de données génotypiques. La démarche repose sur quatre piliers :
+
+\begin{enumerate}[leftmargin=1.4em]
+    \item \textbf{des données enrichies et justifiées} : ajout ciblé de $198$ SNP QRDR non synonymes, sans modifier le jeu de base ;
+    \item \textbf{un découpage honnête} : split train/validation/test groupé par MLST, pour éviter la fuite de clones ;
+    \item \textbf{une comparaison contrôlée} : LogReg (± interactions QRDR), forêt aléatoire, XGBoost, MLP, autoencodeur (+ PCA), sur les mêmes splits et métriques ;
+    \item \textbf{une interprétation et une analyse d'erreurs} : TreeSHAP/LIME, confrontation QRDR, faux négatifs par lignage ;
+    \item \textbf{une évaluation adaptée} : PR-AUC, rappel, F1, balanced accuracy, calibration, bootstrap.
+\end{enumerate}
+
+Les résultats préliminaires montrent que le signal est fortement concentré dans les SNP QRDR : une régression logistique sur $198$ variables atteint déjà un excellent PR-AUC, et XGBoost complet n'apporte qu'un gain marginal. Le pangénome seul généralise moins bien, ce qui suggère qu'il contient des marqueurs de lignage ou du bruit. Ces observations justifient une conclusion nuancée sur le Deep Learning : il est intéressant à des fins de comparaison et d'apprentissage de représentation, mais il n'est pas le choix prioritaire pour ce jeu de données tabulaire.
+
+\begin{keybox}[Message central]
+Le bon modèle n'est pas le plus complexe. C'est celui qui capture le signal biologique, généralise sur des lignages non vus, reste interprétable et est évalué honnêtement.
+\end{keybox}
+
+% ==============================================================================
+% Bibliographie
+% ==============================================================================
+\newpage
+\begin{thebibliography}{99}
+
+\bibitem[{Aldred et al.(2014)}]{aldred2014}
+Aldred, K. J., Kerns, R. J., \& Osheroff, N. (2014).
+Mechanism of quinolone action and resistance.
+\textit{Biochemistry}, 53(10), 1565--1574.
+
+\bibitem[{Breiman(2001)}]{breiman2001}
+Breiman, L. (2001).
+Random forests.
+\textit{Machine Learning}, 45(1), 5--32.
+
+\bibitem[{Chen \& Guestrin(2016)}]{chen2016}
+Chen, T., \& Guestrin, C. (2016).
+XGBoost: A scalable tree boosting system.
+\textit{Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining}, 785--794.
+
+\bibitem[{Cingolani et al.(2012)}]{cingolani2012}
+Cingolani, P., Platts, A., Wang, L. L., Coon, M., Nguyen, T., Wang, L., ... \& Ruden, D. M. (2012).
+A program for annotating and predicting the effects of single nucleotide polymorphisms, SnpEff.
+\textit{Fly}, 6(2), 80--92.
+
+\bibitem[{Danecek et al.(2021)}]{danecek2021}
+Danecek, P., Bonfield, J. K., Liddle, J., Marshall, J., Ohan, V., Pollard, M. O., ... \& Li, H. (2021).
+Twelve years of SAMtools and BCFtools.
+\textit{GigaScience}, 10(2), giab008.
+
+\bibitem[{Hooper \& Jacoby(2016)}]{hooper2016}
+Hooper, D. C., \& Jacoby, G. A. (2016).
+Topoisomerase inhibitors: Fluoroquinolone mechanisms of action and resistance.
+\textit{Cold Spring Harbor Perspectives in Medicine}, 6(9), a025320.
+
+\bibitem[{Ioffe \& Szegedy(2015)}]{ioffe2015}
+Ioffe, S., \& Szegedy, C. (2015).
+Batch normalization: Accelerating deep network training by reducing internal covariate shift.
+\textit{Proceedings of the 32nd International Conference on Machine Learning}, 448--456.
+
+\bibitem[{Kingma \& Ba(2015)}]{kingma2015}
+Kingma, D. P., \& Ba, J. (2015).
+Adam: A method for stochastic optimization.
+\textit{International Conference on Learning Representations}.
+
+\bibitem[{Li \& Durbin(2009)}]{li2009}
+Li, H., \& Durbin, R. (2009).
+Fast and accurate short read alignment with Burrows--Wheeler transform.
+\textit{Bioinformatics}, 25(14), 1754--1760.
+
+\bibitem[{Lundberg \& Lee(2017)}]{lundberg2017}
+Lundberg, S. M., \& Lee, S.-I. (2017).
+A unified approach to interpreting model predictions.
+\textit{Advances in Neural Information Processing Systems}, 30.
+
+\bibitem[{Maiden et al.(1998)}]{maiden1998}
+Maiden, M. C., Bygraves, J. A., Feil, E., Morelli, G., Russell, J. E., Urwin, R., ... \& Spratt, B. G. (1998).
+Multilocus sequence typing: A portable approach to the identification of clones within populations of pathogenic microorganisms.
+\textit{Proceedings of the National Academy of Sciences}, 95(6), 3140--3145.
+
+\bibitem[{Mets \& Morin(2024)}]{mets2024}
+Mets, D. G., \& Morin, M. (2024).
+\textit{Creating a 7,000-strain E. coli genotype dataset with antimicrobial resistance phenotypes}.
+Arcadia Science.
+\url{https://doi.org/10.57844/arcadia-d2cf-ebe5}
+
+\bibitem[{Murray et al.(2022)}]{murray2022global}
+Murray, C. J., Ikuta, K. S., Sharara, F., Swetschinski, L., Aguilar, G. R., Gray, A., ... \& Naghavi, M. (2022).
+Global burden of bacterial antimicrobial resistance in 2019: A systematic analysis.
+\textit{The Lancet}, 399(10325), 629--655.
+
+\bibitem[{Paszke et al.(2019)}]{paszke2019}
+Paszke, A., Gross, S., Massa, F., Lerer, A., Bradbury, J., Chanan, G., ... \& Chintala, S. (2019).
+PyTorch: An imperative style, high-performance deep learning library.
+\textit{Advances in Neural Information Processing Systems}, 32.
+
+\bibitem[{Patton et al.(2025)}]{patton2025}
+Patton, A. H., York, R., \& Sandler, G. (2025).
+\textit{Predicting antimicrobial resistance phenotypes across 7,000 E. coli genomes}.
+Arcadia Science.
+\url{https://doi.org/10.57844/arcadia-8391-465f}
+
+\bibitem[{Pedregosa et al.(2011)}]{pedregosa2011}
+Pedregosa, F., Varoquaux, G., Gramfort, A., Michel, V., Thirion, B., Grisel, O., ... \& Duchesnay, E. (2011).
+Scikit-learn: Machine learning in Python.
+\textit{Journal of Machine Learning Research}, 12, 2825--2830.
+
+\bibitem[{Ribeiro et al.(2016)}]{ribeiro2016}
+Ribeiro, M. T., Singh, S., \& Guestrin, C. (2016).
+``Why should I trust you?'': Explaining the predictions of any classifier.
+\textit{Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining}, 1135--1144.
+
+\bibitem[{Saito \& Rehmsmeier(2015)}]{saito2015}
+Saito, T., \& Rehmsmeier, M. (2015).
+The precision-recall plot is more informative than the ROC plot when evaluating binary classifiers on imbalanced datasets.
+\textit{PLoS ONE}, 10(3), e0118432.
+
+\bibitem[{Srivastava et al.(2014)}]{srivastava2014}
+Srivastava, N., Hinton, G., Krizhevsky, A., Sutskever, I., \& Salakhutdinov, R. (2014).
+Dropout: A simple way to prevent neural networks from overfitting.
+\textit{Journal of Machine Learning Research}, 15(1), 1929--1958.
+
+\bibitem[{Tettelin et al.(2005)}]{tettelin2005}
+Tettelin, H., Masignani, V., Cieslewicz, M. J., Donati, C., Medini, D., Ward, N. L., ... \& Fraser, C. M. (2005).
+Genome analysis of multiple pathogenic isolates of \textit{Streptococcus agalactiae}: Implications for the microbial ``pan-genome''.
+\textit{Proceedings of the National Academy of Sciences}, 102(39), 13950--13955.
+
+\bibitem[{Zhou et al.(2013)}]{zhou2013}
+Zhou, X., Carbonetto, P., \& Stephens, M. (2013).
+Polygenic modeling with Bayesian sparse linear mixed models.
+\textit{PLoS Genetics}, 9(2), e1003264.
+
+\bibitem[{Zenodo(2024)}]{zenodo2024}
+Morin, M. (2024).
+\textit{Creating a 7,000 strains genotype-phenotype dataset of E. coli and antimicrobial resistance phenotypes} [Data set].
+Zenodo.
+\url{https://doi.org/10.5281/zenodo.12692732}
+
+\end{thebibliography}
+
+% ==============================================================================
+% Annexes
+% ==============================================================================
+\newpage
+\appendix
+
+\section{Approches non retenues dans la démarche}
+\label{annexe:hors-perimetre}
+
+Cette annexe précise ce que nous \textbf{ne faisons pas} dans le projet, et pourquoi. Ces choix délimitent le périmètre ; ils ne jugent pas de l'intérêt scientifique de ces approches dans d'autres contextes.
+
+\subsection{CNN sur la matrice tabulaire}
+
+Un CNN exploite une structure spatiale : localité, partage de poids, invariance par translation. Il est adapté aux images, aux signaux et aux séquences. Dans notre matrice, les colonnes sont des gènes ou des SNP \emph{sans ordre spatial significatif}. Appliquer une convolution à ce vecteur impose une notion de voisinage sans justification biologique.
+
+Un CNN pourrait servir de \emph{contrôle négatif}, mais pas de modèle principal. Pour un CNN ou un transformer réellement motivé, il faudrait travailler sur les \textbf{séquences brutes} d'ADN : c'est un autre projet, plus coûteux en calcul et en données.
+
+\subsection{Modèles de fondation génomiques}
+
+Les modèles de fondation sont utiles lorsqu'on travaille sur des séquences brutes, avec peu de labels, un préentraînement transférable, plusieurs espèces ou tâches, et des ressources GPU importantes.
+
+Ici, la matrice est déjà construite ($20\,731$ variables pangénomiques et $198$ SNP annotés). Le jeu compte $5\,935$ isolats, ce qui est modeste pour un fine-tuning. Le signal est concentré dans quelques mutations QRDR connues. Un modèle de fondation serait \textbf{surdimensionné}, coûteux, difficile à reproduire et moins interprétable qu'une forêt ou qu'un XGBoost avec TreeSHAP.
+
+\subsection{Apprentissage multi-tâches comme expérience principale}
+
+Le jeu contient des phénotypes pour plusieurs antibiotiques. Un modèle multi-tâches avec tronc commun pourrait mutualiser l'information entre phénotypes corrélés. Nous le listons comme \textbf{perspective méthodologique} (plan expérimental), mais pas comme prérequis du cœur du projet : il élargit le périmètre (plusieurs labels, gestion des manquants, métriques par antibiotique) alors que l'objectif immédiat est une comparaison contrôlée sur la ciprofloxacine.
+
+\subsection{Synthèse}
+
+\begin{table}[H]
+\centering
+\caption{Ce qui est hors périmètre du cœur de la démarche.}
+\label{tab:hors-perimetre}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+\textbf{Approche} & \textbf{Raison principale d'exclusion} \\
+\midrule
+CNN / transformer sur matrice tabulaire & Pas de structure spatiale biologique sur les colonnes \\
+Modèle de fondation & Matrice déjà construite ; coût et complexité injustifiés \\
+Multi-tâches systématique & Élargit le périmètre ; réservé aux perspectives \\
+BSLMM / GEMMA comme modèle principal & Baseline Arcadia utile en perspective, pas au cœur ML/DL \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Reproductibilité : commandes et fichiers}
+
+\subsection{Fichiers principaux}
+
+\begin{table}[H]
+\centering
+\caption{Fichiers produits et leur rôle.}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+\textbf{Fichier} & \textbf{Rôle} \\
+\midrule
+\texttt{data/processed/ecoli\_ciprofloxacin.csv} & jeu de base, préservé \\
+\texttt{data/processed/ecoli\_ciprofloxacin\_snp.parquet} & jeu enrichi ($5\,935 \times 20\,933$) \\
+\texttt{data/processed/ecoli\_ciprofloxacin\_snp.manifest.json} & liste des SNP, positions, effets, porteurs \\
+\texttt{data/splits\_snp\_3way/} & splits train/validation/test groupés par MLST \\
+\texttt{src/add\_qrdr\_snps.py} & extraction et fusion des SNP \\
+\texttt{src/make\_3way\_splits\_snp.py} & génération du split groupé \\
+\texttt{src/data\_loader.py} & chargement des jeux \texttt{base}, \texttt{snp}, \texttt{snp\_3way} \\
+\texttt{notebooks/exploration\_benjamin.ipynb} & expériences et résultats \\
+\texttt{slides/presentation.qmd} & présentation Reveal.js \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Commandes}
+
+{\footnotesize
+\begin{verbatim}
+python src/add_qrdr_snps.py \
+  --vcf data/raw/Ecoli_AMR_GenotypePhenotype/vcf_files/qrdr/qrdr_non_silent.vcf \
+  --csv data/processed/ecoli_ciprofloxacin.csv \
+  --out-csv data/processed/ecoli_ciprofloxacin_snp.csv \
+  --out-parquet data/processed/ecoli_ciprofloxacin_snp.parquet \
+  --manifest data/processed/ecoli_ciprofloxacin_snp.manifest.json
+
+python src/make_3way_splits_snp.py
+\end{verbatim}
+}
+
+\subsection{Chargement des données}
+
+\begin{verbatim}
+from src.data_loader import load_train, load_validation, load_test
+
+X_train, y_train, meta_train = load_train(dataset="snp_3way")
+X_val,   y_val,   meta_val   = load_validation(dataset="snp_3way")
+X_test,  y_test,  meta_test  = load_test(dataset="snp_3way")
+\end{verbatim}
+
+\section{Glossaire}
+\label{annexe:glossaire}
+
+Ce glossaire regroupe les termes techniques utilisés dans le rapport. Les définitions sont volontairement courtes et orientées vers l'usage qui en est fait dans ce projet.
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{3.5cm}>{\raggedright\arraybackslash}p{12cm}@{}}
+\caption{Glossaire -- biologie, génomique et épidémiologie.}
+\label{tab:glossaire-bio}\\
+\toprule
+\textbf{Terme} & \textbf{Définition} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Terme} & \textbf{Définition (suite)} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+AMR & \emph{Antimicrobial resistance} : résistance aux antimicrobiens, capacité d'une bactérie à survivre en présence d'un antibiotique qui inhibe ou tue normalement son espèce. \\
+Isolat / souche & Une culture bactérienne issue d'un prélèvement unique. Dans ce projet, chaque ligne du jeu de données correspond à un isolat séquencé. \\
+Pangénome & Ensemble de tous les gènes observés dans une espèce, obtenu en comparant les génomes d'un grand nombre de souches. \\
+Gène \emph{core} & Gène présent chez (presque) toutes les souches d'une espèce. Étant invariant, il est filtré des matrices de présence/absence. \\
+Gène accessoire & Gène présent chez certaines souches seulement. Il varie et peut servir de marqueur de lignage ou de plasmide. \\
+Matrice de présence/absence & Tableau binaire où chaque colonne est un gène ou un cluster pangénomique ($1$ = présent, $0$ = absent). \\
+SNP & \emph{Single Nucleotide Polymorphism} : substitution d'un seul nucléotide à une position donnée du génome. \\
+Variant synonyme & Variant qui ne change pas l'acide aminé codé. Exclu de ce projet car moins directement lié au mécanisme. \\
+Variant non synonyme & Variant qui change la protéine : \emph{missense} (autre acide aminé), \emph{nonsense} (codon stop) ou décalage de cadre. Seuls ceux-ci sont retenus. \\
+QRDR & \emph{Quinolone Resistance-Determining Region} : région des gènes \texttt{gyrA}, \texttt{gyrB}, \texttt{parC} et \texttt{parE} où se concentrent les mutations conférant la résistance aux quinolones. \\
+Fluoroquinolone & Classe d'antibiotiques (dont la ciprofloxacine) qui inhibe l'ADN gyrase et la topoisomérase IV, enzymes codées par les gènes QRDR. \\
+CMI (\emph{MIC}) & Concentration minimale inhibitrice : plus faible concentration d'antibiotique inhibant la croissance. C'est la mesure biologique sous-jacente au phénotype binaire. \\
+MLST & \emph{MultiLocus Sequence Typing} : typage par séquençage de 7 gènes de ménage ; la combinaison des allèles définit un \emph{Sequence Type} (ST). \\
+ST (\emph{Sequence Type}) & Identifiant du profil MLST, par exemple \texttt{ST131}. Deux isolats de même ST sont généralement des clones. \\
+Lignage / clone & Groupe de souches descendant d'un ancêtre récent, génétiquement très proches. \\
+Déséquilibre de liaison (LD) & Association non aléatoire entre variants proches sur le génome, qui se transmettent ensemble. Conséquence : les variables sont corrélées et les importances se répartissent entre elles. \\
+Phylogénie & Arbre de parenté entre génomes. Le MLST en est un proxy grossier ; une phylogénie fine s'appuie sur les SNP du génome core. \\
+Épistasie & Interaction entre deux mutations : l'effet combiné diffère de la somme des effets individuels. \\
+Résistance plasmidique & Résistance transmise par un plasmide (par exemple les gènes \texttt{qnr} ou \texttt{aac(6')-Ib-cr}), indépendante des mutations QRDR. \\
+Efflux / porine & Mécanismes non QRDR : pompe qui expulse l'antibiotique, ou perte d'une porine qui limite son entrée. \\
+VCF & \emph{Variant Call Format} : format standard listant les variants détectés par séquençage, avec leurs annotations. \\
+\end{longtable}
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{3.5cm}>{\raggedright\arraybackslash}p{12cm}@{}}
+\caption{Glossaire -- apprentissage automatique et évaluation.}
+\label{tab:glossaire-ml}\\
+\toprule
+\textbf{Terme} & \textbf{Définition} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Terme} & \textbf{Définition (suite)} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+Apprentissage supervisé & Apprendre une fonction qui associe des variables d'entrée à une cible observée (ici : génotype $\rightarrow$ résistant/sensible). \\
+Apprentissage non supervisé & Apprendre une structure sans cible observée ; c'est le cas de l'autoencodeur et de la PCA, qui ne voient jamais $y$. \\
+Train / validation / test & Trois ensembles disjoints : ajustement des paramètres, choix des hyperparamètres et du seuil, évaluation finale unique. \\
+Fuite de données (\emph{leakage}) & Information du test utilisée indirectement pendant l'entraînement ou la sélection, ce qui gonfle artificiellement les performances. \\
+Split groupé & Découpage où toutes les observations d'un même groupe (ici un MLST) restent dans un seul ensemble, afin d'éviter la fuite de clones. \\
+\emph{StratifiedGroupKFold} & Validation croisée de scikit-learn qui combine stratification sur $y$ et non-chevauchement des groupes. \\
+Déséquilibre de classes & Situation où une classe est minoritaire (ici 21,65\,\% de résistants), ce qui rend l'exactitude trompeuse. \\
+Pondération de classe & Donner un poids plus fort à la classe minoritaire dans la fonction de perte, pour augmenter son rappel. \\
+Matrice de confusion & Tableau croisant prédictions et vérité : TP, FP, FN, TN. Base de presque toutes les métriques. \\
+Exactitude (accuracy) & Proportion de prédictions correctes. Peu informative en cas de déséquilibre. \\
+Précision & $\mathrm{TP}/(\mathrm{TP}+\mathrm{FP})$ : parmi les prédits résistants, combien le sont vraiment. \\
+Rappel / sensibilité & $\mathrm{TP}/(\mathrm{TP}+\mathrm{FN})$ : parmi les résistants réels, combien sont détectés. Métrique prioritaire en santé. \\
+Spécificité & $\mathrm{TN}/(\mathrm{TN}+\mathrm{FP})$ : parmi les sensibles réels, combien sont correctement classés. \\
+F1 & Moyenne harmonique de la précision et du rappel ; pénalise les modèles qui sacrifient l'une pour l'autre. \\
+Balanced accuracy & Moyenne du rappel et de la spécificité ; insensible au déséquilibre. \\
+PR-AUC & Aire sous la courbe précision-rappel. Métrique de référence pour une classe positive minoritaire. \\
+ROC-AUC & Aire sous la courbe ROC (rappel vs taux de faux positifs). Peut paraître optimiste en cas de fort déséquilibre. \\
+Calibration / score de Brier & Qualité des probabilités elles-mêmes, indépendamment du classement. Le score de Brier est l'erreur quadratique moyenne des probabilités. \\
+Seuil de décision $\tau$ & Valeur à partir de laquelle une probabilité est convertie en « résistant ». Choisi sur la validation, puis gelé. \\
+Bootstrap & Rééchantillonnage avec remise pour estimer la variabilité d'une métrique et son intervalle de confiance. \\
+Sur-apprentissage & Mémorisation du train sans généralisation ; se traduit par un large écart train/validation. \\
+Régularisation & Ensemble de contraintes qui limitent la complexité : pénalité L2, dropout, arrêt précoce. \\
+Ablation & Retirer ou remplacer un élément (un bloc de variables, une modalité) pour mesurer sa contribution réelle. \\
+Top-$k$ & Sélection des $k$ variables les plus informatives (ici $k=500$) pour réduire la dimension. \\
+PCA & Analyse en composantes principales : réduction de dimension \emph{linéaire}, servant de référence à l'autoencodeur. \\
+Autoencodeur & Réseau non supervisé entraîné à reconstruire son entrée via une couche latente compressée ; la couche latente sert ensuite de représentation. \\
+\emph{Embedding} / espace latent & Vecteur de dimension réduite produit par un modèle (autoencodeur), sans signification individuelle directe pour ses composantes. \\
+MLP & \emph{Multi-Layer Perceptron} : réseau de neurones entièrement connecté, approximateur universel de fonctions. \\
+SHAP & Méthode d'attribution qui répartit la prédiction d'un individu entre les variables, avec une base théorique issue des jeux coopératifs. \\
+TreeSHAP & Version exacte et rapide de SHAP pour les modèles d'arbres (forêt aléatoire, XGBoost). \\
+LIME & Explication locale approchée par un modèle linéaire ajusté autour d'un individu ; agnostique au modèle mais moins stable. \\
+Importance par permutation & Chute de performance observée lorsqu'on mélange aléatoirement une variable ; mesure agnostique au modèle. \\
+Baseline & Modèle de référence simple (ici LogReg, ou « tout sensible ») auquel comparer les modèles plus complexes. \\
+BSLMM & \emph{Bayesian Sparse Linear Mixed Model} : modèle de génétique quantitative utilisé par Patton et al. (2025), qui estime des effets de marqueurs et l'héritabilité. \\
+Héritabilité & Part de la variance phénotypique attribuable à la variation génétique dans une population donnée. \\
+\end{longtable}
+
+% ==============================================================================
+\section{Notations}
+
+\begin{table}[H]
+\centering
+\caption{Notations utilisées dans le rapport.}
+\begin{tabular}{ll}
+\toprule
+\textbf{Notation} & \textbf{Signification} \\
+\midrule
+$N$ & nombre d'isolats \\
+$P$ & nombre de variables \\
+$y_i$ & phénotype binaire de l'isolat $i$ \\
+$\hat p_i$ & probabilité prédite d'être résistant \\
+$\tau$ & seuil de décision \\
+TP, FP, FN, TN & vrais positifs, faux positifs, faux négatifs, vrais négatifs \\
+PR-AUC & aire sous la courbe précision-rappel \\
+ROC-AUC & aire sous la courbe ROC \\
+$w_+$ & poids de la classe résistante \\
+$\lambda$ & coefficient de régularisation \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\end{document}

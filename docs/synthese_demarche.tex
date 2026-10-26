@@ -1,0 +1,458 @@
+\documentclass[11pt,a4paper]{article}
+
+% ------------------------------------------------------------------------------
+% Encodage, langue, typographie
+% ------------------------------------------------------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.2cm]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+
+% ------------------------------------------------------------------------------
+% Mathématiques, tableaux, figures
+% ------------------------------------------------------------------------------
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{float}
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tcolorbox}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,backgrounds}
+\usepackage{hyperref}
+
+% ------------------------------------------------------------------------------
+% Couleurs et boîtes (identiques au rapport complet)
+% ------------------------------------------------------------------------------
+\definecolor{primary}{RGB}{25, 70, 110}
+\definecolor{secondary}{RGB}{35, 120, 150}
+\definecolor{accent}{RGB}{180, 55, 55}
+\definecolor{boxbg}{RGB}{245, 248, 252}
+\definecolor{warnbg}{RGB}{253, 243, 242}
+\definecolor{defbg}{RGB}{250, 250, 252}
+\definecolor{darkgray}{RGB}{60, 60, 60}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=primary,
+    citecolor=secondary,
+    urlcolor=secondary,
+    pdftitle={Synthèse de la démarche -- Résistance à la ciprofloxacine},
+    pdfauthor={Benjamin HIN, Alexandre Aïtoun, Baptiste Jacquet}
+}
+
+\newtcolorbox{keybox}[1][]{
+    colback=boxbg,
+    colframe=primary,
+    coltitle=white,
+    fonttitle=\bfseries,
+    title={#1},
+    arc=2.5mm,
+    boxrule=0.9pt
+}
+
+\newtcolorbox{warnbox}[1][]{
+    colback=warnbg,
+    colframe=accent,
+    coltitle=white,
+    fonttitle=\bfseries,
+    title={#1},
+    arc=2.5mm,
+    boxrule=0.9pt
+}
+
+% ------------------------------------------------------------------------------
+% En-têtes et pieds de page
+% ------------------------------------------------------------------------------
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\setlength{\headheight}{14pt}
+\lhead{\textcolor{darkgray}{\small Projet ML/DL -- Résistance à la ciprofloxacine}}
+\rhead{\textcolor{darkgray}{\small Synthèse de la démarche}}
+\cfoot{\thepage}
+
+% Raccourcis de statut
+\newcommand{\ok}{\textcolor{secondary}{\textbf{fait}}}
+\newcommand{\partiel}{\textcolor{orange}{\textbf{partiel}}}
+\newcommand{\afaire}{\textcolor{darkgray}{\textbf{à faire}}}
+
+% ------------------------------------------------------------------------------
+% Titre
+% ------------------------------------------------------------------------------
+\title{
+    \vspace{-1.2cm}
+    \textbf{\LARGE Synthèse de la démarche}\\[0.35cm]
+    \large Prédiction de la résistance à la ciprofloxacine chez \textit{Escherichia coli}\\[0.2cm]
+    \normalsize Fil conducteur, articulation des étapes, résultats et état d'avancement
+}
+\author{
+    \textbf{Benjamin HIN}\\
+    \textbf{Alexandre Aïtoun}\\
+    \textbf{Baptiste Jacquet}\\
+    Projet Machine Learning \& Deep Learning
+}
+\date{\today}
+
+% ------------------------------------------------------------------------------
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+
+\begin{abstract}
+\noindent
+Ce document est un \textbf{résumé de lecture} du projet. Il présente le fil conducteur de la démarche, explique pourquoi chaque étape existe et comment les étapes s'enchaînent, puis résume les résultats et l'état d'avancement. Les formules, références et justifications détaillées restent dans le rapport complet (\texttt{rapport\_demarche.tex}).
+\end{abstract}
+
+\vspace{0.2cm}
+\noindent\textbf{Mots-clés :} résistance antimicrobienne, \textit{Escherichia coli}, ciprofloxacine, QRDR, split groupé, PR-AUC, interprétabilité.
+
+\vspace{0.4cm}
+\tableofcontents
+
+\newpage
+
+% ==============================================================================
+\section{L'objectif en trois phrases}
+% ==============================================================================
+
+On dispose de \textbf{5\,935 génomes} d'\textit{E. coli} décrits par la présence/absence de \textbf{20\,731 gènes} (pangénome) et de leur phénotype \textbf{sensible / résistant} à la ciprofloxacine (\textbf{21,65\,\%} de résistants).
+
+L'objectif n'est pas seulement d'obtenir un bon score, mais de savoir \textbf{si un modèle entraîné sur le génome généralise à des lignages bactériens qu'il n'a jamais vus}, et \textbf{à quel coût en complexité}.
+
+La réponse courte : le signal est très concentré dans \textbf{198 SNP} ; une régression logistique sur ces seuls SNP atteint \textbf{0,941 de PR-AUC en test}, et les modèles plus complexes (XGBoost) n'apportent qu'un gain marginal. La valeur du projet est donc autant dans la \textbf{rigueur du protocole} que dans la performance brute.
+
+\begin{keybox}[Le message central]
+Un modèle simple, sur les bonnes variables, avec un découpage honnête, fait presque aussi bien qu'un modèle complexe sur 20\,929 variables. La complexité doit être \emph{démontrée}, pas supposée.
+\end{keybox}
+
+% ==============================================================================
+\section{Le fil conducteur}
+% ==============================================================================
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    node distance=3mm,
+    box/.style={draw=primary, rounded corners=2pt, fill=boxbg, align=center,
+                font=\scriptsize, minimum height=11mm, text width=18mm},
+    lbl/.style={font=\scriptsize\itshape, text=darkgray}
+]
+\node[box] (data) {Données brutes\\5\,935 $\times$ 20\,731};
+\node[box, right=of data] (diag) {Diagnostic\\gènes QRDR absents};
+\node[box, right=of diag] (enr) {Enrichissement\\$+198$ SNP};
+\node[box, right=of enr] (split) {Split groupé\\par MLST};
+\node[box, right=of split] (mod) {Modèles ML\\puis DL};
+\node[box, right=of mod] (eval) {Évaluation\\commune};
+\node[box, right=of eval] (interp) {Interprétation\\et erreurs};
+
+\foreach \a/\b in {data/diag, diag/enr, enr/split, split/mod, mod/eval, eval/interp}
+    \draw[-{Latex[length=2mm]}, primary, thick] (\a) -- (\b);
+
+\node[lbl, below=1mm of data] {source unique};
+\node[lbl, below=1mm of split] {découpage gelé};
+\node[lbl, below=1mm of eval] {métriques communes};
+\end{tikzpicture}
+\caption{Vue d'ensemble. Chaque étape produit l'entrée de la suivante ; les trois propriétés en italique sont verrouillées une fois pour toutes.}
+\label{fig:pipeline}
+\end{figure}
+
+Trois principes structurent tout le reste :
+\begin{enumerate}[leftmargin=1.4em]
+    \item \textbf{Une seule source de données} : la matrice enrichie \texttt{ecoli\_ciprofloxacin\_snp.parquet}. Tous les modèles partent d'elle.
+    \item \textbf{Un seul découpage, gelé} : le split 3-way groupé par MLST. Aucun modèle n'a le droit d'en créer un autre.
+    \item \textbf{Une seule grille d'évaluation} : mêmes métriques, même seuil (choisi sur la validation), même test final.
+\end{enumerate}
+
+Le reste de la démarche consiste à \textbf{faire varier une seule chose à la fois} (représentation, modèle, pondération) pour que les comparaisons aient un sens.
+
+% ==============================================================================
+\section{Les étapes, dans l'ordre}
+% ==============================================================================
+
+\subsection{Étape 1 -- Audit des données}
+\textbf{Ce qu'on fait :} vérifier dimensions, valeurs manquantes, distribution de la cible, doublons, structure des groupes MLST.
+
+\textbf{Pourquoi :} le choix des métriques et du découpage dépend entièrement de ce diagnostic. Un déséquilibre 78/22 rend l'exactitude trompeuse ; une structure clonale rend le split aléatoire invalide.
+
+\textbf{Ce que ça conditionne :} tout.
+
+\subsection{Étape 2 -- Enrichissement QRDR (le point clé du projet)}
+\textbf{Ce qu'on fait :} extraire du VCF pangénomique les variants \textbf{non synonymes} de \texttt{gyrA}, \texttt{gyrB}, \texttt{parC}, \texttt{parE}, \texttt{marR}, \texttt{acrR}, \texttt{soxR}, avec un seuil de fréquence $\geq 5$ isolats, ce qui produit \textbf{198 variables SNP}.
+
+\textbf{Pourquoi :} les gènes QRDR sont des gènes \emph{core} : présents chez toutes les souches, donc filtrés de la matrice de présence/absence. Or ce sont eux qui portent les mutations de résistance aux fluoroquinolones. Sans cet ajout, le modèle n'a accès qu'à des marqueurs indirects (gènes accessoires, lignage).
+
+\textbf{Ce que ça conditionne :} la plausibilité biologique de tous les résultats, et la comparaison \emph{SNP seuls} vs \emph{pangénome seul}.
+
+\textbf{Fichier :} \texttt{src/add\_qrdr\_snps.py}.
+
+\subsection{Étape 3 -- Découpage groupé par MLST (l'étape qui protège tout le reste)}
+\textbf{Ce qu'on fait :} \texttt{StratifiedGroupKFold} à 6 folds, groupes = \texttt{mlst\_group}, pour obtenir train (4\,074) / validation (932) / test (929). Les MLST \texttt{unknown} sont traités comme des groupes individuels. Graine 42.
+
+\textbf{Pourquoi :} un split aléatoire plaçait \textbf{95,8\,\%} des isolats de test dans un groupe MLST déjà présent en train. Le modèle aurait alors appris des marqueurs de clone, pas des mécanismes de résistance, et le score aurait été gonflé.
+
+\textbf{Ce que ça conditionne :} la validité de \emph{toute} l'évaluation. Le test est un vrai hold-out de lignages.
+
+\textbf{Fichier :} \texttt{src/make\_3way\_splits\_snp.py} $\rightarrow$ \texttt{data/splits\_snp\_3way/}.
+
+\begin{warnbox}[Conséquence à assumer]
+Le taux de résistants diffère entre train (23,9\,\%) et validation/test ($\approx 16,6\,\%$). C'est la conséquence directe du groupement : on ne « rééquilibre » pas les splits sans casser les groupes et réintroduire de la fuite.
+\end{warnbox}
+
+\subsection{Étape 4 -- Modèles de Machine Learning (les baselines)}
+\textbf{Ce qu'on fait :} régression logistique (avec et sans interactions QRDR), forêt aléatoire, XGBoost.
+
+\textbf{Pourquoi :} établir une référence solide et interprétable avant de justifier un modèle profond. Si un modèle simple atteint le même score, le modèle complexe doit être abandonné.
+
+\textbf{Ce que ça conditionne :} le seuil de comparaison pour le Deep Learning.
+
+\subsection{Étape 5 -- Modèles de Deep Learning}
+\textbf{Ce qu'on fait :} MLP (sur les SNP, sur le top-$k$, sur le jeu complet) et autoencodeur génotypique suivi d'un classifieur sur l'embedding.
+
+\textbf{Pourquoi :} tester l'hypothèse « une représentation non linéaire apprise fait mieux que les variables brutes ou la PCA ». C'est l'équivalent opérationnel du \emph{phenotype encoder} évoqué par l'étude Arcadia, sans recourir à un modèle de fondation (hors périmètre).
+
+\textbf{Ce que ça conditionne :} la conclusion sur l'intérêt du Deep Learning, qui doit être un \textbf{résultat} et non un postulat.
+
+\textbf{Interprétabilité :} elle est traitée à part, car un autoencodeur ne prédit pas directement le phénotype. On distingue \emph{ce que représente la couche latente} (projection colorée par MLST / phénotype / profil QRDR, sondage du décodeur, erreur de reconstruction, alignement avec la PCA) et \emph{ce qui pilote la prédiction} (gradients intégrés, ablation de dimensions, LIME). Le risque principal, à tester avant toute conclusion, est que \(z\) encode le \textbf{lignage} plutôt que le mécanisme.
+
+\textbf{Statut :} non réalisé à ce jour (voir section~\ref{sec:etat}).
+
+\subsection{Étape 6 -- Protocole d'évaluation}
+\textbf{Ce qu'on fait :} matrice de confusion, précision, rappel, F1, balanced accuracy, PR-AUC, ROC-AUC, Brier, calibration, bootstrap.
+
+\textbf{Pourquoi :} l'exactitude seule est trompeuse ici. Exemple mesuré : la LogReg complète a \textbf{84,5\,\% d'exactitude mais seulement 31,4\,\% de rappel} sur les résistants, elle rate deux résistants sur trois. La PR-AUC et le rappel de la classe minoritaire sont les métriques de décision.
+
+\textbf{Règle d'or :} le seuil $\tau$ est choisi \textbf{sur la validation} (max F1, ou rappel cible), puis \textbf{gelé} et appliqué au test. Il n'est jamais réoptimisé sur le test.
+
+\subsection{Étape 7 -- Interprétabilité et analyse d'erreurs}
+\textbf{Ce qu'on fait :} coefficients LogReg, importances natives RF/XGBoost, TreeSHAP (global), LIME (cas individuels), puis analyse des faux négatifs par lignage MLST et par profil QRDR.
+
+\textbf{Pourquoi :} un modèle de santé doit être défendable. Et l'analyse d'erreurs dit \textbf{où} le modèle échoue (lignage mal représenté ? mécanisme de résistance non couvert ?), ce qu'aucune métrique globale ne montre.
+
+\textbf{Ce que ça conditionne :} la conclusion biologique et la confrontation avec la littérature (convergence sur \texttt{parC} Ser80Ile, \texttt{gyrA} Ser83Leu, \texttt{gyrA} Asp87Asn).
+
+% ==============================================================================
+\section{Comment les briques s'articulent}
+% ==============================================================================
+
+L'ordre n'est pas arbitraire : chaque étape \textbf{ferme une porte} pour la suivante.
+
+\begin{table}[H]
+\centering
+\caption{Chaîne de dépendances entre les décisions méthodologiques.}
+\label{tab:articulation}
+\small
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{3.9cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Décision} & \textbf{Débloque} & \textbf{Interdit} \\
+\midrule
+Enrichissement SNP & Comparer SNP / pangénome / complet & -- \\
+Split groupé MLST & Évaluer la généralisation à des lignages neufs & Le split aléatoire, la CV non groupée \\
+Trois ensembles & Choisir hyperparamètres et seuil sans toucher au test & Toute sélection sur le test \\
+Métriques centrées minorité & Comparer des modèles malgré le déséquilibre & L'exactitude comme critère principal \\
+Baselines ML solides & Justifier (ou non) la complexité & Un modèle profond sans référence \\
+Interprétabilité & Valider biologiquement le signal & Un score sans explication \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Autrement dit : \textbf{les données imposent le split, le split impose le protocole d'évaluation, le protocole impose la lecture des résultats}. Si une brique casse (par exemple une fuite dans le split), tout ce qui est en aval perd sa valeur, même si les scores sont bons.
+
+% ==============================================================================
+\section{Chiffres clés et résultats}
+% ==============================================================================
+
+\begin{table}[H]
+\centering
+\caption{Caractéristiques du jeu de données et du découpage.}
+\label{tab:chiffres}
+\small
+\begin{tabular}{lrr}
+\toprule
+\textbf{Élément} & \textbf{Valeur} & \textbf{Remarque} \\
+\midrule
+Isolats & 5\,935 & phénotype ciprofloxacine documenté \\
+Variables pangénome & 20\,731 & présence/absence \\
+SNP QRDR ajoutés & 198 & non synonymes, fréquence $\geq 5$ \\
+Variables totales & 20\,933 & 20\,731 + 198 + 4 métadonnées \\
+Résistants & 1\,285 & 21,65\,\% \\
+Train / Validation / Test & 4\,074 / 932 / 929 & groupé par MLST, graine 42 \\
+Résistants dans le test & 154 & intervalles de confiance larges \\
+Baseline « tout sensible » & $\approx 83\,\%$ d'accuracy & 0\,\% de rappel \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Effet de la représentation sur la performance (seuil 0,5, split groupé par MLST).}
+\label{tab:resultats}
+\small
+\begin{tabular}{llrrrr}
+\toprule
+\textbf{Représentation} & \textbf{Modèle} & \textbf{PR-AUC val} & \textbf{PR-AUC test} & \textbf{Rappel test} & \textbf{F1 test} \\
+\midrule
+SNP seuls (198) & LogReg & 0,961 & 0,941 & 0,942 & 0,954 \\
+SNP seuls (198) & XGBoost & 0,948 & 0,922 & 0,942 & 0,929 \\
+Pangénome seul & LogReg & 0,512 & 0,775 & 0,656 & 0,729 \\
+Pangénome seul & XGBoost & 0,579 & 0,810 & 0,643 & 0,753 \\
+Complet (20\,929) & LogReg & 0,554 & 0,830 & 0,669 & 0,749 \\
+Complet (20\,929) & XGBoost & \textbf{0,969} & \textbf{0,951} & 0,916 & 0,862 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Trois messages à retenir.}
+\begin{enumerate}[leftmargin=1.4em]
+    \item \textbf{Tous les modèles atteignent 1,000 en train.} Avec 20\,929 variables pour 4\,074 échantillons, ils mémorisent : seul l'écart avec validation et test est informatif.
+    \item \textbf{Le signal est dans les 198 SNP.} Presque le meilleur score avec environ cent fois moins de variables ; le pangénome seul généralise nettement moins bien.
+    \item \textbf{Le gain du modèle complexe est marginal.} XGBoost complet gagne 0,010 de PR-AUC en test mais perd du rappel ; avec 154 résistants, cet écart n'est probablement pas significatif.
+\end{enumerate}
+
+% ==============================================================================
+\section{État d'avancement}
+\label{sec:etat}
+% ==============================================================================
+
+\begin{table}[H]
+\centering
+\caption{Avancement brique par brique.}
+\label{tab:etat}
+\small
+\begin{tabularx}{\textwidth}{Xll}
+\toprule
+\textbf{Brique} & \textbf{Statut} & \textbf{Où} \\
+\midrule
+Enrichissement SNP QRDR & \ok & \texttt{src/add\_qrdr\_snps.py} \\
+Split groupé MLST 3-way & \ok & \texttt{src/make\_3way\_splits\_snp.py} \\
+Chargeur de données & \ok & \texttt{src/data\_loader.py} \\
+LogReg / RF / XGBoost & \ok & \texttt{notebooks/exploration\_benjamin.ipynb} \\
+Comparaison des représentations & \ok & \texttt{docs/resultats/} \\
+Seuil choisi sur validation & \partiel & seuil 0,5 utilisé \\
+Calibration (Brier) & \partiel & calculée, non discutée \\
+Bootstrap / multi-graines & \afaire & -- \\
+MLP & \afaire & -- \\
+PCA + classifieur (référence de l'autoencodeur) & \afaire & -- \\
+Autoencodeur + classifieur & \afaire & \texttt{sec.~3, étape 5} \\
+Interprétabilité de l'autoencodeur (latent, décodeur) & \afaire & \texttt{sec.~3, étape 5} \\
+TreeSHAP / LIME & \afaire & -- \\
+Analyse d'erreurs par lignage & \afaire & -- \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% ==============================================================================
+\section{Carte des fichiers}
+% ==============================================================================
+
+\begin{verbatim}
+Projet_ML_DL/
+|-- README.md                      # presentation et organisation de l'equipe
+|-- requirements.txt               # dependances Python
+|-- data/                          # NON VERSIONNE (raw 7,8 Go, processed 500 Mo)
+|   |-- raw/                       # archive Zenodo / Arcadia
+|   |-- processed/                 # jeu de base + jeu enrichi + manifeste SNP
+|   |-- splits/                    # split 2-way d'origine (pangenome)
+|   |-- splits_snp/                # split 2-way avec SNP
+|   |-- splits_snp_3way/           # * split de reference train/val/test
+|   `-- results/                   # sorties de modeles
+|-- src/
+|   |-- add_qrdr_snps.py           # extraction des 198 SNP
+|   |-- make_3way_splits_snp.py    # split groupe MLST (reference)
+|   |-- make_splits_snp.py         # ancien split 2-way (conserve)
+|   `-- data_loader.py             # load_train / load_validation / load_test
+|-- notebooks/
+|   `-- exploration_benjamin.ipynb # experiences et resultats preliminaires
+|-- docs/
+|   |-- synthese_demarche.tex/.pdf # * ce document
+|   |-- rapport_demarche.tex/.pdf  # rapport complet
+|   |-- donnees_snp.md             # documentation du jeu enrichi
+|   |-- split_3way.md              # documentation du decoupage
+|   |-- resultats/                 # CSV de resultats
+|   `-- archive/                   # anciennes versions du rapport
+`-- slides/
+    |-- presentation.qmd           # source de la presentation
+    `-- presentation.html          # rendu genere (ne pas editer)
+\end{verbatim}
+
+% ==============================================================================
+\section{Reproduire}
+% ==============================================================================
+
+\begin{verbatim}
+# 1. Dépendances
+pip install -r requirements.txt
+
+# 2. Jeu enrichi (198 SNP)
+python src/add_qrdr_snps.py \
+  --vcf data/raw/Ecoli_AMR_GenotypePhenotype/vcf_files/qrdr/qrdr_non_silent.vcf \
+  --csv data/processed/ecoli_ciprofloxacin.csv \
+  --out-csv data/processed/ecoli_ciprofloxacin_snp.csv \
+  --out-parquet data/processed/ecoli_ciprofloxacin_snp.parquet \
+  --manifest data/processed/ecoli_ciprofloxacin_snp.manifest.json
+
+# 3. Split groupé par MLST
+python src/make_3way_splits_snp.py
+
+# 4. Chargement
+python -c "from src.data_loader import load_train; \
+X, y, m = load_train(dataset='snp_3way'); print(X.shape, y.mean())"
+\end{verbatim}
+
+% ==============================================================================
+\section{Glossaire express}
+% ==============================================================================
+
+Les termes indispensables pour lire ce document. Le rapport complet contient un glossaire étendu (biologie, génomique et apprentissage) en annexe.
+
+\begin{table}[H]
+\centering
+\caption{Termes essentiels.}
+\label{tab:glossaire-express}
+\small
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.1cm}>{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{Terme} & \textbf{Définition} \\
+\midrule
+SNP (\emph{Single Nucleotide Polymorphism}) & Substitution d'un nucléotide unique. Ici, $198$ variants non synonymes ajoutés aux gènes QRDR. \\
+QRDR (\emph{Quinolone Resistance-Determining Region}) & Région de \texttt{gyrA}, \texttt{gyrB}, \texttt{parC}, \texttt{parE} où se concentrent les mutations de résistance aux quinolones. \\
+Pangénome & Ensemble des gènes observés dans l'espèce. Les gènes présents chez toutes les souches (\emph{core}) sont invariants et filtrés. \\
+MLST / ST (\emph{MultiLocus Sequence Typing}) & Typage par 7 gènes de ménage ; la combinaison des allèles définit un \emph{Sequence Type} (ex. \texttt{ST131}), qui identifie un clone. \\
+Clone / lignage & Groupe de souches quasi identiques, issues d'un ancêtre récent. \\
+Split groupé & Découpage gardant tous les isolats d'un même ST dans le même ensemble, pour éviter que le modèle reconnaisse un clone. \\
+Fuite de données & Information du test utilisée pendant l'entraînement ou la sélection ; gonfle artificiellement les scores. \\
+PR-AUC & Aire sous la courbe précision-rappel. Métrique de référence quand la classe positive est minoritaire. \\
+Rappel & Proportion de résistants réels effectivement détectés. Métrique prioritaire en santé. \\
+Calibration / Brier & Fiabilité des probabilités elles-mêmes, indépendamment du classement. \\
+Seuil $\tau$ & Probabilité à partir de laquelle on prédit « résistant ». Choisi sur la validation, puis gelé pour le test. \\
+PCA (analyse en composantes principales) & Réduction de dimension linéaire, référence à laquelle l'autoencodeur est comparé. \\
+Autoencodeur & Réseau non supervisé qui compresse l'entrée puis la reconstruit ; la couche latente sert de représentation. \\
+MLP (\emph{Multi-Layer Perceptron}) & Réseau de neurones entièrement connecté. \\
+SHAP / TreeSHAP & Attribution de la prédiction aux variables ; TreeSHAP en est la version exacte pour les arbres. \\
+LIME (\emph{Local Interpretable Model-agnostic Explanations}) & Explication locale approchée, agnostique au modèle. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% ==============================================================================
+\section{Les cinq choix à savoir défendre}
+% ==============================================================================
+
+\begin{enumerate}[leftmargin=1.4em]
+    \item \textbf{Split groupé par MLST et non aléatoire} : sinon fuite de clones (95,8\,\% de recouvrement mesuré).
+    \item \textbf{Enrichissement QRDR et non VCF brut} : 2,4 millions de variants seraient ingérables ; on cible les variants non synonymes à fréquence $\geq 5$.
+    \item \textbf{PR-AUC et rappel plutôt qu'exactitude} : 83\,\% d'exactitude est atteignable en prédisant tout « sensible ».
+    \item \textbf{Seuil choisi sur validation puis gelé} : sinon le test devient une seconde validation.
+    \item \textbf{Deep Learning comme expérience contrôlée, pas comme objectif} : un modèle complexe ne se justifie que par un gain robuste sur les baselines.
+\end{enumerate}
+
+\end{document}
