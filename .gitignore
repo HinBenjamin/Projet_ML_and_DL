@@ -1,6 +1,13 @@
 # Données (ne jamais push les fichiers de données)
 data/*
 !data/.gitkeep
+# ... sauf les splits et les données processed
+!data/splits_snp_3way/
+!data/splits_snp_3way/**
+!data/splits_all_antibiotics/
+!data/splits_all_antibiotics/**
+!data/processed/
+!data/processed/**
 
 # Python / Jupyter
 __pycache__/
