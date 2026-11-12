@@ -3,17 +3,19 @@ title: "Prédire la résistance à la ciprofloxacine chez *Escherichia coli*"
 subtitle: "Du pangénome aux SNP QRDR : modèles classiques, splits groupés et regard sur le deep learning"
 author: "Benjamin HIN"
 date: "2026"
+date-format: "YYYY"
 format:
   revealjs:
     theme: [default, custom.scss]
     slide-number: true
+    progress: true
     transition: slide
     background-transition: fade
     incremental: false
     embed-resources: true
     width: 1280
     height: 720
-    margin: 0.08
+    margin: 0.04
     footer: "Projet ML / DL — Résistance aux antibiotiques"
 ---
 
@@ -39,7 +41,7 @@ Le projet ne consiste pas seulement à maximiser une accuracy. Il faut aussi év
 
 - Matrice préparée : `data/processed/ecoli_ciprofloxacin_snp.parquet`.
 - Splits : `data/splits_snp_3way/`.
-- **5 935 isolats × 20 933 features** :
+- **5 935 isolats × 20 929 features** (20 933 colonnes avec la cible et les métadonnées) :
   - 20 731 gènes / clusters pangénomiques ;
   - 198 SNP QRDR et régulateurs.
 
@@ -51,10 +53,9 @@ Le projet ne consiste pas seulement à maximiser une accuracy. Il faut aussi év
 | `1` | résistant |
 
 - 1 285 résistants sur 5 935 isolats (**21,7 %**).
-- Dans le notebook : `y_train`, `y_val`, `y_test` sont lus directement depuis les fichiers de splits.
 
 ::: {.notes}
-Le notebook ne reconstruit ni la matrice ni la cible : il part des fichiers déjà préparés. La construction des SNP et des splits est documentée dans `docs/donnees_snp.md` et `docs/split_3way.md`.
+Le notebook ne reconstruit ni la matrice ni la cible : il part des fichiers déjà préparés. La construction des SNP et des splits est documentée dans les scripts `src/add_qrdr_snps.py` et `src/make_3way_splits_snp.py`.
 :::
 
 ## Splits : éviter la fuite de lignage
@@ -68,8 +69,7 @@ Le notebook ne reconstruit ni la matrice ni la cible : il part des fichiers déj
 
 - `StratifiedGroupKFold` à 6 folds.
 - 4 folds train / 1 validation / 1 test.
-- Aucun groupe MLST connu dans deux splits.
-- `unknown` traité comme groupe individuel.
+- Aucun groupe MLST dans deux splits ; `unknown` traité à part.
 
 | Split | Isolats | Résistants | Taux R |
 |---|---:|---:|---:|
@@ -83,29 +83,23 @@ Le déséquilibre train/validation/test est inhérent aux grands groupes MLST. I
 
 ## Modèles testés
 
-### Trois familles
+### Quatre familles
 
-1. **Régression logistique**
-2. **Random Forest**
-3. **XGBoost**
+**Régression logistique** · **Random Forest** · **XGBoost** · **MLP PyTorch**
 
 ### Protocole
 
 - Mêmes splits, mêmes features, mêmes métriques.
 - Seuil par défaut : 0,5, puis seuil optimisé sur la validation (F1 max).
-- Métriques principales :
-  - **PR-AUC** (adaptée au déséquilibre) ;
-  - **recall résistant** ;
-  - **F1 résistant** ;
-  - **balanced accuracy**.
+- Métriques : **PR-AUC**, **recall résistant**, **F1 résistant**, **balanced accuracy**.
 
 ### Pourquoi pas l'accuracy seule ?
 
-Le baseline « tout sensible » donne déjà **83,3 %** en validation et **83,4 %** en test.
+> Le baseline « tout sensible » donne déjà **83,3 %** en validation et **83,4 %** en test.
 
 ## Résultats sur le split groupé
 
-### Modèles complets (20 929 features)
+### Modèles classiques (20 929 features, seuil 0,5)
 
 | Modèle | PR-AUC train | PR-AUC val | PR-AUC test | Recall R val | Recall R test |
 |---|---:|---:|---:|---:|---:|
@@ -120,7 +114,7 @@ Le baseline « tout sensible » donne déjà **83,3 %** en validation et **83,4 
 - LogReg et Random Forest prédisent surtout la classe majoritaire.
 
 ::: {.notes}
-Le recall résistant est la métrique critique : manquer un résistant peut être plus grave que sur-prédire une résistance.
+Le recall résistant est la métrique critique : manquer un résistant peut être plus grave que sur-prédire une résistance. Au seuil optimisé 0,842, XGBoost obtient un recall test de 0,909 et un F1 de 0,940.
 :::
 
 ## Résultats détaillés — validation à 0,5 {.small}
@@ -145,7 +139,7 @@ Ces chiffres correspondent au notebook d'exploration (validation, seuil 0,5). Le
 
 ## Sur-apprentissage : oui, mais lequel ?
 
-### Tout le monde fait 100 % sur le train
+### Les modèles complets font 100 % sur le train
 
 Avec 20 929 features pour 4 074 échantillons, les modèles peuvent mémoriser le train.
 
@@ -155,11 +149,13 @@ Avec 20 929 features pour 4 074 échantillons, les modèles peuvent mémoriser l
 |---|---:|---|
 | LogReg complet | 1,000 → 0,554 | fort sur-apprentissage / sous-ajustement de la classe R |
 | Random Forest complet | 1,000 → 0,803 | sur-apprentissage modéré |
-| XGBoost complet | 1,000 → 0,969 | bon généralisation |
+| XGBoost complet | 1,000 → 0,969 | bonne généralisation |
 | LogReg SNP seuls | 0,983 → 0,961 | très stable |
 | Pangénome seul | 1,000 → 0,512 | sur-apprentissage marqué |
+| MLP complet | ≈ 1,000 → 0,685 | sur-apprentissage rapide |
+| MLP top-50 SHAP | ≈ 1,000 → 0,964 | écart maîtrisé |
 
-> Le sur-apprentissage ne se diagnostique pas avec le score de train seul, mais avec l'écart et la performance sur des données non vues.
+> Le sur-apprentissage se diagnostique par l'écart train → validation/test, pas par le score de train seul.
 
 ## Le signal vient surtout des SNP
 
@@ -183,7 +179,7 @@ Avec 20 929 features pour 4 074 échantillons, les modèles peuvent mémoriser l
 C'est un résultat important : le modèle le plus simple est presque aussi performant que le modèle complet. Il est aussi plus interprétable.
 :::
 
-## Du score à la décision : choisir le seuil
+## Du score à la décision : choisir le seuil {.small}
 
 ::: {.columns}
 ::: {.column width="55%"}
@@ -201,7 +197,8 @@ C'est un résultat important : le modèle le plus simple est presque aussi perfo
 ### Prudence
 
 - Seuil choisi **et** évalué sur la validation → estimation **optimiste**.
-- Il faudra le figer puis l'évaluer sur le **test**, ou utiliser une validation croisée imbriquée.
+- Il est maintenant **figé puis évalué sur le test** : F1 **0,940**, recall **0,909**, 4 faux positifs, 14 faux négatifs.
+- Une validation croisée imbriquée resterait plus rigoureuse pour estimer le seuil.
 :::
 :::
 
@@ -233,55 +230,88 @@ Le plateau du F1 est large entre 0,2 et 0,9 : le choix exact du seuil est moins 
 La calibration ne change pas le classement des individus, donc pas le PR-AUC. Elle change l'interprétation clinique des probabilités et le choix du seuil.
 :::
 
-## Interprétation biologique
+## Interprétation biologique — SHAP {.small}
 
-### Top features XGBoost (importance native)
+::: {.columns}
+::: {.column width="56%"}
+![](images/shap_beeswarm.png){width=100%}
+:::
+::: {.column width="44%"}
+### Top features XGBoost (SHAP moyen)
 
-| Feature | Gain |
+| Feature | SHAP moyen |
 |---|---:|
-| `SNP_parC_Ser80Ile` | 28,0 % |
-| `SNP_gyrA_Asp87Asn` | 1,8 % |
-| `SNP_gyrA_Ser83Leu` | 0,8 % |
+| `SNP_parC_Ser80Ile` | 3,07 |
+| `SNP_gyrA_Ser83Leu` | 1,77 |
+| `SNP_gyrA_Asp87Asn` | 1,07 |
+| `EHILKNIF_03360` | 0,18 |
 
 ### Ce que cela signifie
 
 - Le modèle s'appuie d'abord sur des mutations **connues** de résistance aux fluoroquinolones.
 - C'est **biologiquement rassurant**.
-- Les features pangénomiques restantes peuvent être des marqueurs de lignage ou des gènes accessoires.
-
-### Prudence
-
-- Importance ≠ causalité.
-- Les features corrélées se partagent l'importance.
-- Une validation externe reste nécessaire.
-
-## Deep learning : ce qui a été testé
-
-### Une baseline volontairement simple
-
-- **MLP** sur les **20 929 features** brutes.
-- Architecture : `20 929 → 64 → 32 → 1`.
-- ReLU, dropout 0,5, SGD (`lr = 0,01`), batch 64.
-- `BCEWithLogitsLoss` pondérée (`pos_weight`).
-- Early stopping sur le **PR-AUC de validation** (patience 15).
-
-### Pourquoi cette baseline ?
-
-- Même représentation que XGBoost → comparaison directe.
-- Aucune sélection de features pour ne pas avantager le DL.
-- Objectif : vérifier si un réseau apporte un gain sur une matrice tabulaire.
-
-### Ce qui n'a pas été retenu (pour l'instant)
-
-- CNN : données non séquentielles.
-- Modèle de fondation : surdimensionné pour 5 935 échantillons.
-- Autoencodeur : piste de réduction de dimension.
-
-::: {.notes}
-Le MLP est volontairement simple : deux couches cachées, dropout, early stopping. Il sert de point de comparaison, pas de tentative de battre XGBoost à tout prix.
+- Les autres features sont individuellement faibles ; elles peuvent porter des marqueurs de lignage ou des gènes accessoires.
+:::
 :::
 
-## MLP : entraînement et sur-apprentissage {.small}
+::: {.notes}
+SHAP est calculé sur le test. Les trois SNP QRDR dominent très largement les contributions individuelles. La somme des 20 925 autres features reste notable (10,18), mais chaque feature prise séparément a un effet marginal.
+:::
+
+## Analyse d'erreurs — XGBoost au seuil 0,842 {.small}
+
+::: {.columns}
+::: {.column width="50%"}
+### Faux positif (prédit R, réel S)
+
+![](images/shap_faux_positif.png){width=100%}
+
+- Porte les **trois mutations canoniques**.
+- Pourtant phénotypé sensible → phénotype à vérifier, mécanisme compensateur ou résistance non exprimée.
+:::
+::: {.column width="50%"}
+### Faux négatif (prédit S, réel R)
+
+![](images/shap_faux_negatif.png){width=100%}
+
+- **Aucune** des trois mutations canoniques.
+- Résistance probablement portée par un autre mécanisme : pompe d'efflux, plasmide, membrane.
+:::
+:::
+
+> 4 faux positifs et 14 faux négatifs sur 929 isolats de test.
+
+::: {.notes}
+L'analyse d'erreurs est biologiquement lisible : le modèle rate les résistances qui ne passent pas par les mutations QRDR canoniques. Les faux positifs peuvent aussi révéler des phénotypes discordants ou des mécanismes compensateurs.
+:::
+
+## Deep learning : ce qui a été testé {.small}
+
+### Deux variantes de MLP
+
+- **Sans sélection** : les **20 929 features** brutes.
+- **Avec sélection** : les **top 50 features** par importance SHAP moyenne, calculées avec XGBoost **sur le train**.
+
+### Architectures et entraînement
+
+- Brut : `20 929 → 512 → 128 → 32 → 1`, BatchNorm, ReLU, dropout 0,3 / 0,2.
+- Top-50 : `50 → 64 → 16 → 1`, ReLU, dropout 0,5.
+- AdamW (`lr = 0,001`), batch 64, `BCEWithLogitsLoss` pondérée (`pos_weight ≈ 3,18`).
+- Early stopping sur le **PR-AUC de validation** (patience 15).
+
+### Pourquoi ces baselines ?
+
+- Même représentation que XGBoost pour la version brute → comparaison directe.
+- La version top-50 teste l'effet d'une représentation compacte.
+- Objectif : mesurer l'apport réel du réseau, pas seulement son meilleur score.
+
+::: {.notes}
+Le MLP brut sert de point de comparaison. La variante top-50 réutilise la sélection SHAP issue de XGBoost : elle mesure donc l'effet de la représentation autant que celui de l'architecture.
+
+Non retenus pour l'instant : CNN (données non séquentielles), modèle de fondation (surdimensionné pour 5 935 échantillons), autoencodeur (piste de réduction de dimension).
+:::
+
+## MLP complet : entraînement et sur-apprentissage {.small}
 
 ::: {.columns}
 ::: {.column width="62%"}
@@ -290,89 +320,115 @@ Le MLP est volontairement simple : deux couches cachées, dropout, early stoppin
 ::: {.column width="38%"}
 ### Early stopping
 
-- Meilleur epoch : **16**.
-- Meilleur PR-AUC validation : **0,787**.
-- Arrêt à l'epoch **31**.
+- Meilleur epoch : **0**.
+- Meilleur PR-AUC validation : **0,685**.
+- Arrêt à l'epoch **15**.
 
 ### Diagnostic
 
-- PR-AUC train → **1,0**.
-- PR-AUC validation plafonne vers **0,78**.
-- Écart de loss croissant → **sur-apprentissage net**.
+- PR-AUC train → **≈ 1,0**.
+- PR-AUC validation plafonne à **0,685**.
+- Écart de loss croissant → **sur-apprentissage rapide**.
 :::
 :::
 
 ::: {.notes}
-Le train est appris par cœur (PR-AUC 1,0) alors que la validation plafonne. Le dropout et l'early stopping limitent les dégâts, mais ne suffisent pas à combler l'écart avec XGBoost.
+Le meilleur epoch est le tout premier : le réseau mémorise immédiatement le train puis se dégrade. Le dropout, la pondération et l'early stopping limitent les dégâts, mais ne suffisent pas à combler l'écart avec XGBoost.
 :::
 
-## MLP : résultats {.small}
+## MLP complet : résultats {.small}
 
 ### Validation (seuil 0,5) et test (seuil optimisé)
 
 | Jeu | Seuil | Accuracy | Bal. acc | Precision | Recall R | F1 R | ROC-AUC | PR-AUC |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Validation | 0,50 | 0,777 | 0,825 | 0,422 | **0,897** | 0,574 | 0,913 | 0,734 |
-| Test | 0,802 | 0,897 | 0,824 | 0,679 | 0,714 | 0,696 | 0,901 | **0,775** |
+| Validation | 0,50 | 0,770 | 0,780 | 0,405 | **0,795** | 0,537 | 0,860 | 0,685 |
+| Test | 0,776 | 0,899 | 0,825 | 0,688 | 0,714 | 0,701 | 0,882 | **0,730** |
 
 ### Lecture
 
-- À 0,5, le MLP privilégie le **rappel** (89,7 %) au prix de nombreux faux positifs.
-- Le seuil 0,802 rétablit l'équilibre, mais le F1 test plafonne à **0,696**.
-- Le signal est appris (PR-AUC 0,775, contre 0,166 de prévalence), mais loin de XGBoost.
+- À 0,5, le MLP privilégie le **rappel** (79,5 %) au prix de **182 faux positifs**.
+- Le seuil 0,776 rétablit l'équilibre, mais le F1 test plafonne à **0,701**.
+- Le signal est appris (PR-AUC 0,730, contre 0,166 de prévalence), mais loin de XGBoost.
 
 ::: {.notes}
-Le seuil du MLP est choisi sur la validation puis appliqué au test : c'est le protocole correct. Le PR-AUC test de 0,775 reste très au-dessus du hasard (0,166), donc le réseau apprend bien quelque chose.
+Le seuil du MLP est choisi sur la validation puis appliqué au test : c'est le protocole correct. Le PR-AUC test de 0,730 reste très au-dessus du hasard (0,166), donc le réseau apprend bien quelque chose, mais il est nettement derrière XGBoost.
+:::
+
+## MLP + sélection de variables {.small}
+
+::: {.columns}
+::: {.column width="58%"}
+![](images/mlp_courbes_top50.png){width=100%}
+:::
+::: {.column width="42%"}
+### Protocole
+
+- Top 50 features par importance SHAP moyenne, calculées avec XGBoost **sur le train**.
+- Architecture : `50 → 64 → 16 → 1`, dropout 0,5, AdamW.
+
+### Résultats
+
+- Meilleur epoch : **17** ; PR-AUC validation : **0,964**.
+- Validation (0,5) : F1 **0,902**.
+- Test (seuil 0,960) : PR-AUC **0,954**, F1 **0,943**, recall **0,909**.
+:::
+:::
+
+> Le MLP rattrape XGBoost… mais la sélection top-50 est déjà supervisée par XGBoost.
+
+::: {.notes}
+Ce n'est pas une victoire indépendante du deep learning : c'est la preuve que la représentation (50 features) porte l'essentiel du signal. Le réseau exploite très bien une matrice compacte, mais il ne découvre pas seul les bonnes variables.
 :::
 
 ## XGBoost vs MLP : le verdict
 
 ### Comparaison sur le test
 
-| Modèle | Seuil | PR-AUC | Recall R | F1 R | Bal. acc |
-|---|---:|---:|---:|---:|---:|
-| **XGBoost** | 0,50 | **0,951** | **0,916** | **0,862** | **0,937** |
-| MLP | 0,802 | 0,775 | 0,714 | 0,696 | 0,824 |
+| Modèle | Features | Seuil | PR-AUC | Recall R | F1 R | Bal. acc |
+|---|---|---:|---:|---:|---:|---:|
+| **XGBoost** | 20 929 | 0,842 | **0,951** | **0,909** | **0,940** | **0,952** |
+| MLP brut | 20 929 | 0,776 | 0,730 | 0,714 | 0,701 | 0,825 |
+| MLP top-50 SHAP | 50 | 0,960 | **0,954** | **0,909** | **0,943** | **0,953** |
 
 ### Écarts
 
-- **−17,6 points** de PR-AUC pour le MLP.
-- **−16,6 points** de F1.
-- **−11,3 points** de balanced accuracy.
-- Le MLP reste compétitif en rappel à 0,5, mais au prix de la précision.
+- MLP brut vs XGBoost : **−22,1 pts** de PR-AUC, **−23,9 pts** de F1, **−12,7 pts** de balanced accuracy.
+- MLP top-50 vs XGBoost : **+0,3 pt** de PR-AUC, **+0,3 pt** de F1 → quasi-identique.
+- Le MLP brut reste compétitif en rappel (0,714), mais avec beaucoup de faux positifs.
 
-> Sur cette représentation tabulaire, le deep learning n'apporte pas de gain.
+> Sur la représentation brute, le deep learning n'apporte pas de gain. Avec 50 features sélectionnées par XGBoost, il rattrape la référence.
 
 ::: {.notes}
-Les écarts sont importants et cohérents avec la littérature sur les données tabulaires de petite taille. Le MLP n'est pas disqualifié, mais il n'est pas le modèle à retenir ici.
+Les écarts importants du MLP brut sont cohérents avec la littérature sur les données tabulaires de petite taille. Le résultat top-50 est excellent, mais il faut rappeler que la sélection des variables utilise déjà le modèle XGBoost.
 :::
 
-## Ce que le deep learning apporte pédagogiquement
+## Ce que le deep learning apporte pédagogiquement {.small}
 
 ### Compétences travaillées
 
 - Passage de scikit-learn à PyTorch : tenseurs, loss, optimiseur, epochs.
-- Gestion du sur-apprentissage : dropout, early stopping.
+- Gestion du sur-apprentissage : dropout, BatchNorm, early stopping.
 - Déséquilibre : `pos_weight`, seuil, PR-AUC.
-- Choix d'architecture : MLP vs modèles linéaires.
+- Sélection de features par SHAP et comparaison de représentations.
 - Rigueur : mêmes splits, mêmes métriques.
 
 ### Message scientifique
 
-> “Avec un MLP simple sur les 20 929 features, le PR-AUC test plafonne à 0,775, contre 0,951 pour XGBoost. Le deep learning n'apporte pas de gain ici.”
+> “Sur les 20 929 features brutes, le MLP plafonne à 0,730 de PR-AUC test, contre 0,951 pour XGBoost. Avec 50 features sélectionnées par SHAP, il remonte à 0,954 : la représentation compte plus que l'architecture.”
 
-C'est un **résultat négatif utile**, pas un échec : il confirme que le ML classique est le bon outil pour cette matrice tabulaire.
+C'est un **résultat négatif nuancé** : le ML classique reste la référence sur la matrice brute ; le DL devient compétitif quand on lui fournit une représentation compacte, mais la sélection est elle-même supervisée par XGBoost.
 
 ## Limites
 
 - **Test petit** : 929 isolats, 154 résistants → intervalles de confiance larges.
 - **Split groupé par MLST**, pas par phylogénie fine.
 - **Pas de validation externe** sur une autre cohorte.
-- **Seuil optimal (0,842) choisi et évalué sur la validation** → estimation optimiste ; à confirmer sur le test ou par validation croisée imbriquée.
+- **Seuil optimal (0,842) choisi sur la validation**, puis évalué sur le test (F1 0,940) ; la sélection du seuil reste optimiste, une validation croisée imbriquée serait préférable.
 - **Calibration** explorée mais non corrigée (Platt / isotonic).
-- **Deep learning** : une seule architecture, un seul seed.
+- **Deep learning** : deux architectures, mais un seul seed ; la variante top-50 dépend d'une sélection SHAP issue de XGBoost.
 - **Features pangénomiques** partiellement non annotées ; risque de marqueurs de lignage.
-- **Analyse d'erreurs et confrontation à la littérature** restent à finaliser (sections 4.2–4.3 du notebook).
+- **Analyse d'erreurs** réalisée (4 faux positifs, 14 faux négatifs), mais confrontation systématique à la littérature encore à approfondir.
 
 ::: {.notes}
 Il faut présenter les résultats avec des intervalles de confiance et éviter de conclure sur des différences de 1 ou 2 points.
@@ -382,35 +438,35 @@ Il faut présenter les résultats avec des intervalles de confiance et éviter d
 
 ### Pour consolider les résultats
 
-- Validation croisée groupée à 5 folds, plusieurs seeds.
-- Intervalles de confiance par bootstrap.
+- Validation croisée groupée à 5 folds, plusieurs seeds, IC par bootstrap.
 - Validation externe.
-- Évaluer le seuil 0,842 sur le **test** (ou validation croisée imbriquée).
+- Validation croisée imbriquée pour le seuil **et** la sélection de features.
 - Correction de la calibration (Platt / isotonic) et intégration dans la décision.
 - Analyse d'erreurs par lignage, confrontation à la littérature.
 
 ### Pour aller plus loin
 
 - Ajouter d'autres mécanismes : pompes d'efflux, plasmides, gènes acquis.
-- Sélection de features SNPs + gènes.
-- MLP sur les 198 SNP, top features et autoencodeur.
+- Features SNPs + gènes ; MLP sur les 198 SNP, sélection sans XGBoost, autoencodeur.
+- Tester la stabilité du top-50 SHAP (seeds, bootstrap).
 - CNN sur séquences brutes, si les données le permettent.
 
-## Conclusion
+## Conclusion {.small}
 
 ### Ce que l'on retient
 
-- Le jeu enrichi contient **5 935 × 20 933** colonnes, dont **198 SNP QRDR**.
+- Le jeu enrichi contient **5 935 × 20 929 features**, dont **198 SNP QRDR**.
 - Un split **groupé par MLST** évite la fuite de clones.
-- **XGBoost** obtient les meilleures performances globales (**PR-AUC test 0,951**).
+- **XGBoost** obtient les meilleures performances globales (**PR-AUC test 0,951**, F1 0,940 au seuil 0,842).
 - Une **régression logistique sur 198 SNP** est presque aussi bonne, plus simple et plus interprétable.
 - Le **pangénome seul** sur-apprend et généralise moins bien.
 - Le seuil **0,842** améliore le F1 en validation (0,923 → 0,943) ; les probabilités sont **globalement calibrées** (Brier 0,020).
-- Le **MLP** testé reste loin derrière (PR-AUC test **0,775** vs 0,951).
+- Le **MLP brut** reste loin derrière (PR-AUC test **0,730**), mais le **MLP top-50 SHAP** atteint **0,954** : la représentation est décisive.
+- Les **erreurs sont interprétables** : faux négatifs sans mutation QRDR, faux positifs portant les trois mutations canoniques.
 
 ### Message final
 
-> Le bon modèle n'est pas le plus complexe : c'est celui qui capture le signal biologique, généralise sur des lignages non vus et reste interprétable.
+> Le bon modèle n'est pas le plus complexe : c'est celui qui capture le signal biologique, généralise sur des lignages non vus et reste interprétable. Ici, la représentation — 198 SNP ou 50 features SHAP — compte plus que la famille de modèle.
 
 ## Questions
 
