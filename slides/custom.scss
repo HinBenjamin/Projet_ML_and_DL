@@ -1,0 +1,79 @@
+/*-- scss:rules --*/
+
+.reveal {
+  font-size: 28px;
+}
+
+.reveal h1,
+.reveal h2,
+.reveal h3 {
+  color: #0f172a;
+  text-transform: none;
+  letter-spacing: -0.02em;
+}
+
+.reveal h2 {
+  border-bottom: 3px solid #0f766e;
+  padding-bottom: 0.25em;
+  margin-bottom: 0.7em;
+}
+
+.reveal a {
+  color: #0f766e;
+}
+
+.reveal table {
+  font-size: 0.72em;
+  margin: 0.4em auto;
+}
+
+.reveal table th {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.reveal table td,
+.reveal table th {
+  padding: 0.35em 0.6em;
+  border-color: #cbd5e1;
+}
+
+.reveal .slide-number {
+  color: #64748b;
+  font-size: 0.55em;
+}
+
+.reveal .footer {
+  color: #64748b;
+  font-size: 0.45em;
+}
+
+.reveal blockquote {
+  border-left: 4px solid #0f766e;
+  background: #f0fdfa;
+  padding: 0.5em 0.8em;
+  color: #134e4a;
+}
+
+.reveal .small {
+  font-size: 0.8em;
+}
+
+.reveal .smaller {
+  font-size: 0.7em;
+}
+
+.reveal .highlight {
+  color: #0f766e;
+  font-weight: 700;
+}
+
+.reveal .bad {
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.reveal .good {
+  color: #047857;
+  font-weight: 700;
+}
