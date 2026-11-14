@@ -1,0 +1,9 @@
+atb,n_train,n_val,n_test,prevalence_test_%,best_model,threshold,val_pr_auc,test_auc,test_pr_auc,test_f1,test_precision,test_recall,baseline_pr_auc,gain_pr_auc,critere
+ciprofloxacin,4050,946,939,17.6,xgb,0.048,0.9683,0.982,0.9769,0.9458,0.9401,0.9515,0.17600000000000002,0.8009,strict
+ampicillin,3245,822,784,47.8,xgb,0.55,0.9602,0.956,0.9602,0.9024,0.9174,0.888,0.478,0.4822,strict
+trimethoprim/sulfamethoxazole,2285,567,522,30.3,xgb,0.551,0.8806,0.923,0.8534,0.7509,0.8425,0.6772,0.303,0.5504,strict
+cefotaxime,3654,862,852,11.5,xgb,0.691,0.8447,0.963,0.8379,0.7044,0.918,0.5714,0.115,0.7229,étendu
+gentamicin,4042,935,933,9.1,xgb,0.157,0.7607,0.9645,0.8095,0.7802,0.732,0.8353,0.091,0.7185,étendu
+ceftazidime,3881,943,921,9.6,xgb,0.223,0.7987,0.9555,0.7206,0.6173,0.6757,0.5682,0.096,0.6246,étendu
+cefuroxime,2676,769,656,11.0,xgb,0.277,0.6671,0.8326,0.6486,0.5854,0.7059,0.5,0.11,0.5386,strict
+amoxicillin/clavulanic acid,2542,560,608,31.1,xgb,0.037,0.5248,0.7429,0.5129,0.5751,0.4429,0.8201,0.311,0.2019,strict
