@@ -1,0 +1,2652 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.10.18">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Prédiction de la résistance aux antibiotiques</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js" integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2" crossorigin="anonymous"></script><script src="all_antibiotic_files/libs/clipboard/clipboard.min.js"></script>
+<script src="all_antibiotic_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="all_antibiotic_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="all_antibiotic_files/libs/quarto-html/popper.min.js"></script>
+<script src="all_antibiotic_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="all_antibiotic_files/libs/quarto-html/anchor.min.js"></script>
+<link href="all_antibiotic_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="all_antibiotic_files/libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="all_antibiotic_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="all_antibiotic_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="all_antibiotic_files/libs/bootstrap/bootstrap-917079515d91bccb85b543faf8aa8bb6.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script src="https://cdn.jsdelivr.net/npm/requirejs@2.3.6/require.min.js" integrity="sha384-c9c+LnTbwQ3aujuU7ULEPVvgLs+Fn6fJUvIGTsuu1ZcCf11fiEubah0ttpca4ntM sha384-6V1/AdqZRWk1KAlWbKBlGhN7VG4iE/yAZcO6NZPMF8od0vukrvr0tg4qY6NSrItx" crossorigin="anonymous"></script>
+
+<script type="application/javascript">define('jquery', [],function() {return window.jQuery;})</script>
+
+
+</head>
+
+<body class="fullcontent quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Prédiction de la résistance aux antibiotiques</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p>Ce notebook suit un entonnoir en deux temps :</p>
+<ol type="1">
+<li><strong>choisir</strong> les antibiotiques exploitables (couverture, prévalence, critères strict/élargi) ;</li>
+<li><strong>explorer en détail</strong> un antibiotique choisi (régression logistique, RandomForest, XGBoost, MLP, SHAP) ;</li>
+</ol>
+<section id="imports-et-configuration" class="level2">
+<h2 class="anchored" data-anchor-id="imports-et-configuration">1. Imports et configuration</h2>
+<div id="981b315c" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-12T17:20:31.983693Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-11-12T17:20:31.983590Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-11-12T17:20:33.208414Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-12T17:20:33.207889Z&quot;}}" data-execution_count="23">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> sys</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> warnings</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> joblib</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> seaborn <span class="im">as</span> sns</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> copy</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> shap</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> matplotlib.patches <span class="im">import</span> Patch</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch <span class="im">import</span> nn</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch.utils.data <span class="im">import</span> DataLoader, TensorDataset</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.calibration <span class="im">import</span> calibration_curve</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.ensemble <span class="im">import</span> RandomForestClassifier</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> (</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>    accuracy_score,</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>    average_precision_score,</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>    balanced_accuracy_score,</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>    confusion_matrix,</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>    f1_score,</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>    precision_recall_curve,</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>    precision_score,</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>    recall_score,</span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>    roc_auc_score,</span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.pipeline <span class="im">import</span> Pipeline</span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> xgboost <span class="im">import</span> XGBClassifier</span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a><span class="co"># évite les conflits de threads entre torch et les librairies natives</span></span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>torch.set_num_threads(<span class="dv">1</span>)</span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a><span class="co"># on défini la graine </span></span>
+<span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a>SEED <span class="op">=</span> <span class="dv">42</span></span>
+<span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a><span class="co"># on change les paramètres de sortie graphiques </span></span>
+<span id="cb1-40"><a href="#cb1-40" aria-hidden="true" tabindex="-1"></a>sns.set_theme(style<span class="op">=</span><span class="st">"whitegrid"</span>, context<span class="op">=</span><span class="st">"notebook"</span>)</span>
+<span id="cb1-41"><a href="#cb1-41" aria-hidden="true" tabindex="-1"></a>pd.set_option(<span class="st">"display.max_columns"</span>, <span class="dv">100</span>)</span>
+<span id="cb1-42"><a href="#cb1-42" aria-hidden="true" tabindex="-1"></a>pd.set_option(<span class="st">"display.width"</span>, <span class="dv">160</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="chargement-des-splits" class="level2">
+<h2 class="anchored" data-anchor-id="chargement-des-splits">2. Chargement des splits</h2>
+<p>Le chemin est résolu de façon à fonctionner que le notebook soit lancé depuis <code>notebooks/</code> ou depuis la racine du dépôt.</p>
+<div id="b6457350" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-12T17:20:33.209958Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-11-12T17:20:33.209812Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-11-12T17:20:33.213395Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-12T17:20:33.213031Z&quot;}}" data-execution_count="13">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> find_splits_dir() <span class="op">-&gt;</span> Path:</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    candidates <span class="op">=</span> [</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>        Path(<span class="st">"../data/splits_all_snp_3way"</span>),</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>        Path(<span class="st">"data/splits_all_snp_3way"</span>),</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> candidate <span class="kw">in</span> candidates:</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> (candidate <span class="op">/</span> <span class="st">"X_train.parquet"</span>).exists():</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> candidate.resolve()</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">FileNotFoundError</span>(</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Impossible de trouver data/splits_all_snp_3way. "</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Lance le notebook depuis la racine du dépôt ou depuis notebooks/."</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>DATA <span class="op">=</span> find_splits_dir()</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>REPO_ROOT <span class="op">=</span> DATA.parent.parent</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>sys.path.insert(<span class="dv">0</span>, <span class="bu">str</span>(REPO_ROOT))</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>MODEL_DIR <span class="op">=</span> REPO_ROOT <span class="op">/</span> <span class="st">"models"</span> <span class="op">/</span> <span class="st">"by_atb"</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>REPORT_DIR <span class="op">=</span> REPO_ROOT <span class="op">/</span> <span class="st">"reports"</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>MODEL_DIR.mkdir(parents<span class="op">=</span><span class="va">True</span>, exist_ok<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>REPORT_DIR.mkdir(parents<span class="op">=</span><span class="va">True</span>, exist_ok<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"DATA       :"</span>, DATA)</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"REPO_ROOT  :"</span>, REPO_ROOT)</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"MODEL_DIR  :"</span>, MODEL_DIR)</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"REPORT_DIR :"</span>, REPORT_DIR)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>DATA       : /Users/hin.benjamin/Projet_ML_DL/Projet_ML_DL/data/splits_all_snp_3way
+REPO_ROOT  : /Users/hin.benjamin/Projet_ML_DL/Projet_ML_DL
+MODEL_DIR  : /Users/hin.benjamin/Projet_ML_DL/Projet_ML_DL/models/by_atb
+REPORT_DIR : /Users/hin.benjamin/Projet_ML_DL/Projet_ML_DL/reports</code></pre>
+</div>
+</div>
+<div id="d3c1d0bb" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-12T17:20:33.214744Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-11-12T17:20:33.214663Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-11-12T17:20:37.111473Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-12T17:20:37.110909Z&quot;}}" data-execution_count="14">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>SPLITS <span class="op">=</span> (<span class="st">"train"</span>, <span class="st">"val"</span>, <span class="st">"test"</span>)</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>data <span class="op">=</span> {}</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> split <span class="kw">in</span> SPLITS:</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    data[<span class="ss">f"X_</span><span class="sc">{</span>split<span class="sc">}</span><span class="ss">"</span>] <span class="op">=</span> pd.read_parquet(DATA <span class="op">/</span> <span class="ss">f"X_</span><span class="sc">{</span>split<span class="sc">}</span><span class="ss">.parquet"</span>)</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    data[<span class="ss">f"Y_</span><span class="sc">{</span>split<span class="sc">}</span><span class="ss">"</span>] <span class="op">=</span> pd.read_parquet(DATA <span class="op">/</span> <span class="ss">f"Y_</span><span class="sc">{</span>split<span class="sc">}</span><span class="ss">.parquet"</span>)</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> data[<span class="ss">f"X_</span><span class="sc">{</span>split<span class="sc">}</span><span class="ss">"</span>].index.equals(data[<span class="ss">f"Y_</span><span class="sc">{</span>split<span class="sc">}</span><span class="ss">"</span>].index):</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="ss">f"Index désalignés pour le split </span><span class="sc">{</span>split<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>n_features <span class="op">=</span> data[<span class="st">"X_train"</span>].shape[<span class="dv">1</span>]</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>n_drugs <span class="op">=</span> data[<span class="st">"Y_train"</span>].shape[<span class="dv">1</span>]</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>n_total <span class="op">=</span> <span class="bu">sum</span>(<span class="bu">len</span>(data[<span class="ss">f"X_</span><span class="sc">{</span>split<span class="sc">}</span><span class="ss">"</span>]) <span class="cf">for</span> split <span class="kw">in</span> SPLITS)</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>n_total<span class="sc">:,}</span><span class="ss"> génomes au total | </span><span class="sc">{</span>n_features<span class="sc">:,}</span><span class="ss"> features | </span><span class="sc">{</span>n_drugs<span class="sc">}</span><span class="ss"> antibiotiques"</span>)</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> split <span class="kw">in</span> SPLITS:</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"</span><span class="sc">{</span>split<span class="sc">:5s}</span><span class="ss"> : X=</span><span class="sc">{</span>data[<span class="ss">f'X_</span><span class="sc">{</span>split<span class="sc">}</span><span class="ss">'</span>]<span class="sc">.</span>shape<span class="sc">}</span><span class="ss"> "</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"| Y=</span><span class="sc">{</span>data[<span class="ss">f'Y_</span><span class="sc">{</span>split<span class="sc">}</span><span class="ss">'</span>]<span class="sc">.</span>shape<span class="sc">}</span><span class="ss"> "</span></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"| dtype X=</span><span class="sc">{</span>data[<span class="ss">f'X_</span><span class="sc">{</span>split<span class="sc">}</span><span class="ss">'</span>]<span class="sc">.</span>dtypes<span class="sc">.</span>iloc[<span class="dv">0</span>]<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>    )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>6,949 génomes au total | 34,744 features | 48 antibiotiques
+train : X=(4722, 34744) | Y=(4722, 48) | dtype X=uint8
+val   : X=(1110, 34744) | Y=(1110, 48) | dtype X=uint8
+test  : X=(1117, 34744) | Y=(1117, 48) | dtype X=uint8</code></pre>
+</div>
+</div>
+</section>
+<section id="couverture-du-phénotype-par-antibiotique" class="level2">
+<h2 class="anchored" data-anchor-id="couverture-du-phénotype-par-antibiotique">3. Couverture du phénotype par antibiotique</h2>
+<p>Avant d’entraîner quoi que ce soit, on vérifie combien d’individus sont testés et quelle est la prévalence de la résistance sur chaque split.</p>
+<div id="f7d4bdcb" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-12T17:20:37.113395Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-11-12T17:20:37.113268Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-11-12T17:20:37.147453Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-12T17:20:37.146965Z&quot;}}" data-execution_count="15">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> coverage_table(data: <span class="bu">dict</span>) <span class="op">-&gt;</span> pd.DataFrame:</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    rows <span class="op">=</span> []</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> atb <span class="kw">in</span> data[<span class="st">"Y_train"</span>].columns:</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>        row <span class="op">=</span> {<span class="st">"atb"</span>: atb}</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> split <span class="kw">in</span> SPLITS:</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>            y <span class="op">=</span> data[<span class="ss">f"Y_</span><span class="sc">{</span>split<span class="sc">}</span><span class="ss">"</span>][atb]</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>            n <span class="op">=</span> <span class="bu">int</span>(y.notna().<span class="bu">sum</span>())</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>            n_r <span class="op">=</span> <span class="bu">int</span>((y <span class="op">==</span> <span class="dv">1</span>).<span class="bu">sum</span>())</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>            row[<span class="ss">f"n_</span><span class="sc">{</span>split<span class="sc">}</span><span class="ss">"</span>] <span class="op">=</span> n</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>            row[<span class="ss">f"pct_R_</span><span class="sc">{</span>split<span class="sc">}</span><span class="ss">"</span>] <span class="op">=</span> <span class="bu">round</span>(<span class="dv">100</span> <span class="op">*</span> n_r <span class="op">/</span> n, <span class="dv">1</span>) <span class="cf">if</span> n <span class="cf">else</span> np.nan</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>        rows.append(row)</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> pd.DataFrame(rows).set_index(<span class="st">"atb"</span>)</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>coverage <span class="op">=</span> coverage_table(data)</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>coverage[<span class="st">"n_min"</span>] <span class="op">=</span> coverage[[<span class="ss">f"n_</span><span class="sc">{</span>split<span class="sc">}</span><span class="ss">"</span> <span class="cf">for</span> split <span class="kw">in</span> SPLITS]].<span class="bu">min</span>(axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>coverage <span class="op">=</span> coverage.sort_values(<span class="st">"n_test"</span>, ascending<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>coverage.to_csv(REPORT_DIR <span class="op">/</span> <span class="st">"coverage_by_atb.csv"</span>)</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>coverage</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="15">
+<div>
+
+
+<table class="dataframe caption-top table table-sm table-striped small" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">n_train</th>
+<th data-quarto-table-cell-role="th">pct_R_train</th>
+<th data-quarto-table-cell-role="th">n_val</th>
+<th data-quarto-table-cell-role="th">pct_R_val</th>
+<th data-quarto-table-cell-role="th">n_test</th>
+<th data-quarto-table-cell-role="th">pct_R_test</th>
+<th data-quarto-table-cell-role="th">n_min</th>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">atb</th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">ciprofloxacin</th>
+<td>4050</td>
+<td>23.5</td>
+<td>946</td>
+<td>17.9</td>
+<td>939</td>
+<td>17.6</td>
+<td>939</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">gentamicin</th>
+<td>4042</td>
+<td>10.3</td>
+<td>935</td>
+<td>9.4</td>
+<td>933</td>
+<td>9.1</td>
+<td>933</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">ceftazidime</th>
+<td>3881</td>
+<td>10.2</td>
+<td>943</td>
+<td>7.5</td>
+<td>921</td>
+<td>9.6</td>
+<td>921</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">piperacillin/tazobactam</th>
+<td>3823</td>
+<td>4.3</td>
+<td>902</td>
+<td>5.7</td>
+<td>892</td>
+<td>3.6</td>
+<td>892</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">cefotaxime</th>
+<td>3654</td>
+<td>16.7</td>
+<td>862</td>
+<td>8.9</td>
+<td>852</td>
+<td>11.5</td>
+<td>852</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">ampicillin</th>
+<td>3245</td>
+<td>51.1</td>
+<td>822</td>
+<td>48.2</td>
+<td>784</td>
+<td>47.8</td>
+<td>784</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">meropenem</th>
+<td>3233</td>
+<td>0.4</td>
+<td>680</td>
+<td>0.7</td>
+<td>721</td>
+<td>0.6</td>
+<td>680</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">cefuroxime</th>
+<td>2676</td>
+<td>14.3</td>
+<td>769</td>
+<td>11.6</td>
+<td>656</td>
+<td>11.0</td>
+<td>656</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">amoxicillin/clavulanic acid</th>
+<td>2542</td>
+<td>29.7</td>
+<td>560</td>
+<td>31.1</td>
+<td>608</td>
+<td>31.1</td>
+<td>560</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">tigecycline</th>
+<td>2475</td>
+<td>0.1</td>
+<td>654</td>
+<td>0.0</td>
+<td>566</td>
+<td>0.0</td>
+<td>566</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">trimethoprim/sulfamethoxazole</th>
+<td>2285</td>
+<td>31.5</td>
+<td>567</td>
+<td>25.4</td>
+<td>522</td>
+<td>30.3</td>
+<td>522</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">amikacin</th>
+<td>1321</td>
+<td>0.7</td>
+<td>182</td>
+<td>0.5</td>
+<td>267</td>
+<td>1.1</td>
+<td>182</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">amoxicillin</th>
+<td>719</td>
+<td>57.6</td>
+<td>224</td>
+<td>58.9</td>
+<td>188</td>
+<td>62.8</td>
+<td>188</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">imipenem</th>
+<td>789</td>
+<td>1.1</td>
+<td>226</td>
+<td>1.3</td>
+<td>184</td>
+<td>1.1</td>
+<td>184</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">tobramycin</th>
+<td>697</td>
+<td>19.1</td>
+<td>164</td>
+<td>20.1</td>
+<td>155</td>
+<td>22.6</td>
+<td>155</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">aztreonam</th>
+<td>589</td>
+<td>15.8</td>
+<td>141</td>
+<td>5.0</td>
+<td>130</td>
+<td>8.5</td>
+<td>130</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">nalidixic acid</th>
+<td>522</td>
+<td>14.0</td>
+<td>133</td>
+<td>14.3</td>
+<td>123</td>
+<td>9.8</td>
+<td>123</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">trimethoprim</th>
+<td>469</td>
+<td>50.5</td>
+<td>119</td>
+<td>41.2</td>
+<td>110</td>
+<td>49.1</td>
+<td>110</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">cefepime</th>
+<td>577</td>
+<td>14.7</td>
+<td>114</td>
+<td>13.2</td>
+<td>104</td>
+<td>11.5</td>
+<td>104</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">ertapenem</th>
+<td>473</td>
+<td>5.1</td>
+<td>98</td>
+<td>8.2</td>
+<td>85</td>
+<td>3.5</td>
+<td>85</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">cefoxitin</th>
+<td>359</td>
+<td>11.1</td>
+<td>86</td>
+<td>17.4</td>
+<td>74</td>
+<td>16.2</td>
+<td>74</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">cefalotin</th>
+<td>223</td>
+<td>51.6</td>
+<td>76</td>
+<td>48.7</td>
+<td>68</td>
+<td>61.8</td>
+<td>68</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">tetracycline</th>
+<td>295</td>
+<td>60.3</td>
+<td>44</td>
+<td>75.0</td>
+<td>49</td>
+<td>53.1</td>
+<td>44</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">ceftriaxone</th>
+<td>339</td>
+<td>50.7</td>
+<td>49</td>
+<td>53.1</td>
+<td>46</td>
+<td>45.7</td>
+<td>46</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">nitrofurantoin</th>
+<td>207</td>
+<td>2.9</td>
+<td>32</td>
+<td>3.1</td>
+<td>33</td>
+<td>0.0</td>
+<td>32</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">chloramphenicol</th>
+<td>189</td>
+<td>27.0</td>
+<td>32</td>
+<td>31.2</td>
+<td>31</td>
+<td>35.5</td>
+<td>31</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">levofloxacin</th>
+<td>198</td>
+<td>71.7</td>
+<td>26</td>
+<td>76.9</td>
+<td>28</td>
+<td>67.9</td>
+<td>26</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">norfloxacin</th>
+<td>144</td>
+<td>23.6</td>
+<td>19</td>
+<td>5.3</td>
+<td>25</td>
+<td>16.0</td>
+<td>19</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">azithromycin</th>
+<td>123</td>
+<td>9.8</td>
+<td>19</td>
+<td>0.0</td>
+<td>21</td>
+<td>4.8</td>
+<td>19</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">sulfamethoxazole</th>
+<td>125</td>
+<td>68.8</td>
+<td>21</td>
+<td>57.1</td>
+<td>21</td>
+<td>57.1</td>
+<td>21</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">streptomycin</th>
+<td>123</td>
+<td>44.7</td>
+<td>19</td>
+<td>47.4</td>
+<td>21</td>
+<td>14.3</td>
+<td>19</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">cefazolin</th>
+<td>146</td>
+<td>87.0</td>
+<td>15</td>
+<td>86.7</td>
+<td>17</td>
+<td>94.1</td>
+<td>15</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">doripenem</th>
+<td>41</td>
+<td>17.1</td>
+<td>4</td>
+<td>0.0</td>
+<td>11</td>
+<td>18.2</td>
+<td>4</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">moxifloxacin</th>
+<td>29</td>
+<td>58.6</td>
+<td>3</td>
+<td>100.0</td>
+<td>6</td>
+<td>50.0</td>
+<td>3</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">fosfomycin</th>
+<td>22</td>
+<td>4.5</td>
+<td>5</td>
+<td>20.0</td>
+<td>4</td>
+<td>25.0</td>
+<td>4</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">ampicillin/sulbactam</th>
+<td>63</td>
+<td>74.6</td>
+<td>5</td>
+<td>80.0</td>
+<td>4</td>
+<td>50.0</td>
+<td>4</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">piperacillin</th>
+<td>22</td>
+<td>50.0</td>
+<td>5</td>
+<td>80.0</td>
+<td>4</td>
+<td>50.0</td>
+<td>4</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">doxycycline</th>
+<td>28</td>
+<td>75.0</td>
+<td>3</td>
+<td>66.7</td>
+<td>3</td>
+<td>100.0</td>
+<td>3</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">ofloxacin</th>
+<td>16</td>
+<td>31.2</td>
+<td>2</td>
+<td>100.0</td>
+<td>3</td>
+<td>33.3</td>
+<td>2</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">colistin</th>
+<td>20</td>
+<td>25.0</td>
+<td>5</td>
+<td>40.0</td>
+<td>3</td>
+<td>33.3</td>
+<td>3</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">minocycline</th>
+<td>7</td>
+<td>100.0</td>
+<td>0</td>
+<td>NaN</td>
+<td>3</td>
+<td>66.7</td>
+<td>0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">kanamycin</th>
+<td>9</td>
+<td>66.7</td>
+<td>0</td>
+<td>NaN</td>
+<td>3</td>
+<td>0.0</td>
+<td>0</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">ticarcillin/clavulanic acid</th>
+<td>6</td>
+<td>100.0</td>
+<td>0</td>
+<td>NaN</td>
+<td>1</td>
+<td>100.0</td>
+<td>0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">cefotetan</th>
+<td>22</td>
+<td>13.6</td>
+<td>5</td>
+<td>20.0</td>
+<td>1</td>
+<td>0.0</td>
+<td>1</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">cefpodoxime</th>
+<td>3</td>
+<td>100.0</td>
+<td>0</td>
+<td>NaN</td>
+<td>1</td>
+<td>100.0</td>
+<td>0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">cefalexin</th>
+<td>1</td>
+<td>100.0</td>
+<td>0</td>
+<td>NaN</td>
+<td>0</td>
+<td>NaN</td>
+<td>0</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">sulbactam</th>
+<td>1</td>
+<td>100.0</td>
+<td>0</td>
+<td>NaN</td>
+<td>0</td>
+<td>NaN</td>
+<td>0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">cefotaxime/clavulanic acid</th>
+<td>0</td>
+<td>NaN</td>
+<td>1</td>
+<td>100.0</td>
+<td>0</td>
+<td>NaN</td>
+<td>0</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+<div id="56338f32" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-12T17:20:37.148777Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-11-12T17:20:37.148665Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-11-12T17:20:37.547702Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-12T17:20:37.547156Z&quot;}}" data-execution_count="16">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">14</span>, <span class="dv">10</span>))</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>order <span class="op">=</span> coverage.sort_values(<span class="st">"n_test"</span>)</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>axes[<span class="dv">0</span>].barh(order.index, order[<span class="st">"n_test"</span>], color<span class="op">=</span><span class="st">"steelblue"</span>)</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>axes[<span class="dv">0</span>].axvline(<span class="dv">100</span>, color<span class="op">=</span><span class="st">"red"</span>, linestyle<span class="op">=</span><span class="st">"--"</span>, label<span class="op">=</span><span class="st">"seuil 100"</span>)</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>axes[<span class="dv">0</span>].set_title(<span class="st">"Nombre de patients testés — test"</span>)</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>axes[<span class="dv">0</span>].set_xlabel(<span class="st">"n"</span>)</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>axes[<span class="dv">0</span>].legend()</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>axes[<span class="dv">1</span>].barh(order.index, order[<span class="st">"pct_R_test"</span>], color<span class="op">=</span><span class="st">"indianred"</span>)</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>axes[<span class="dv">1</span>].axvline(<span class="dv">10</span>, color<span class="op">=</span><span class="st">"red"</span>, linestyle<span class="op">=</span><span class="st">"--"</span>, label<span class="op">=</span><span class="st">"10 %"</span>)</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>axes[<span class="dv">1</span>].axvline(<span class="dv">90</span>, color<span class="op">=</span><span class="st">"red"</span>, linestyle<span class="op">=</span><span class="st">"--"</span>)</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>axes[<span class="dv">1</span>].set_xlim(<span class="dv">0</span>, <span class="dv">100</span>)</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>axes[<span class="dv">1</span>].set_title(<span class="st">"Prévalence de la résistance — test"</span>)</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>axes[<span class="dv">1</span>].set_xlabel(<span class="st">"% R parmi les testés"</span>)</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>axes[<span class="dv">1</span>].legend()</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="all_antibiotic_files/figure-html/cell-6-output-1.png" class="img-fluid figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="quels-antibiotiques-sont-exploitables" class="level2">
+<h2 class="anchored" data-anchor-id="quels-antibiotiques-sont-exploitables">4. Quels antibiotiques sont exploitables ?</h2>
+<p>Deux critères sont calculés :</p>
+<ul>
+<li><strong>strict</strong> : au moins 100 individus testés et au moins 10 % de classe minoritaire sur chacun des trois splits ;</li>
+<li><strong>élargi</strong> : au moins 100 individus testés et au moins 5 % de classe minoritaire.</li>
+</ul>
+<p>Le seuil de 100 est un paramètre du pipeline (<code>min_samples</code>) ; on peut le monter à 300 pour ne garder que les antibiotiques les plus solides.</p>
+<div id="c90b4c21" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-12T17:20:37.549382Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-11-12T17:20:37.549279Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-11-12T17:20:37.554240Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-12T17:20:37.553737Z&quot;}}" data-execution_count="17">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>MIN_SAMPLES <span class="op">=</span> <span class="dv">100</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> is_eligible(row, min_minority_pct: <span class="bu">float</span>) <span class="op">-&gt;</span> <span class="bu">bool</span>:</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">'''Vrai si le split est assez grand et assez équilibré sur les 3 splits.'''</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> split <span class="kw">in</span> SPLITS:</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>        n <span class="op">=</span> row[<span class="ss">f"n_</span><span class="sc">{</span>split<span class="sc">}</span><span class="ss">"</span>]</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>        pct <span class="op">=</span> row[<span class="ss">f"pct_R_</span><span class="sc">{</span>split<span class="sc">}</span><span class="ss">"</span>]</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> n <span class="op">&lt;</span> MIN_SAMPLES <span class="kw">or</span> <span class="kw">not</span> (<span class="dv">0</span> <span class="op">&lt;</span> pct <span class="op">&lt;</span> <span class="dv">100</span>):</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> <span class="va">False</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">min</span>(pct, <span class="dv">100</span> <span class="op">-</span> pct) <span class="op">&lt;</span> min_minority_pct:</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> <span class="va">False</span></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">True</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>coverage[<span class="st">"eligible_10"</span>] <span class="op">=</span> coverage.<span class="bu">apply</span>(is_eligible, axis<span class="op">=</span><span class="dv">1</span>, min_minority_pct<span class="op">=</span><span class="fl">10.0</span>)</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>coverage[<span class="st">"eligible_5"</span>] <span class="op">=</span> coverage.<span class="bu">apply</span>(is_eligible, axis<span class="op">=</span><span class="dv">1</span>, min_minority_pct<span class="op">=</span><span class="fl">5.0</span>)</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Listes dérivées des critères : plus besoin de recopier les noms à la main.</span></span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>CANDIDATS_STRICT <span class="op">=</span> coverage.index[coverage[<span class="st">"eligible_10"</span>]].tolist()</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>CANDIDATS_LARGE <span class="op">=</span> coverage.index[coverage[<span class="st">"eligible_5"</span>]].tolist()</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(</span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"strict (&gt;= </span><span class="sc">{</span>MIN_SAMPLES<span class="sc">}</span><span class="ss"> testés et &gt;= 10 % minoritaire) : "</span></span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"</span><span class="sc">{</span><span class="bu">len</span>(CANDIDATS_STRICT)<span class="sc">}</span><span class="ss"> antibiotiques"</span></span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  "</span>, CANDIDATS_STRICT)</span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>()</span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(</span>
+<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"élargi (&gt;= </span><span class="sc">{</span>MIN_SAMPLES<span class="sc">}</span><span class="ss"> testés et &gt;= 5 % minoritaire) : "</span></span>
+<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a>    <span class="ss">f"</span><span class="sc">{</span><span class="bu">len</span>(CANDIDATS_LARGE)<span class="sc">}</span><span class="ss"> antibiotiques"</span></span>
+<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  "</span>, CANDIDATS_LARGE)</span>
+<span id="cb8-34"><a href="#cb8-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-35"><a href="#cb8-35" aria-hidden="true" tabindex="-1"></a>coverage.to_csv(REPORT_DIR <span class="op">/</span> <span class="st">"coverage_by_atb.csv"</span>)</span>
+<span id="cb8-36"><a href="#cb8-36" aria-hidden="true" tabindex="-1"></a>coverage.head()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>strict (&gt;= 100 testés et &gt;= 10 % minoritaire) : 9 antibiotiques
+   ['ciprofloxacin', 'ampicillin', 'cefuroxime', 'amoxicillin/clavulanic acid', 'trimethoprim/sulfamethoxazole', 'amoxicillin', 'tobramycin', 'trimethoprim', 'cefepime']
+
+élargi (&gt;= 100 testés et &gt;= 5 % minoritaire) : 14 antibiotiques
+   ['ciprofloxacin', 'gentamicin', 'ceftazidime', 'cefotaxime', 'ampicillin', 'cefuroxime', 'amoxicillin/clavulanic acid', 'trimethoprim/sulfamethoxazole', 'amoxicillin', 'tobramycin', 'aztreonam', 'nalidixic acid', 'trimethoprim', 'cefepime']</code></pre>
+</div>
+<div class="cell-output cell-output-display" data-execution_count="17">
+<div>
+
+
+<table class="dataframe caption-top table table-sm table-striped small" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">n_train</th>
+<th data-quarto-table-cell-role="th">pct_R_train</th>
+<th data-quarto-table-cell-role="th">n_val</th>
+<th data-quarto-table-cell-role="th">pct_R_val</th>
+<th data-quarto-table-cell-role="th">n_test</th>
+<th data-quarto-table-cell-role="th">pct_R_test</th>
+<th data-quarto-table-cell-role="th">n_min</th>
+<th data-quarto-table-cell-role="th">eligible_10</th>
+<th data-quarto-table-cell-role="th">eligible_5</th>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">atb</th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">ciprofloxacin</th>
+<td>4050</td>
+<td>23.5</td>
+<td>946</td>
+<td>17.9</td>
+<td>939</td>
+<td>17.6</td>
+<td>939</td>
+<td>True</td>
+<td>True</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">gentamicin</th>
+<td>4042</td>
+<td>10.3</td>
+<td>935</td>
+<td>9.4</td>
+<td>933</td>
+<td>9.1</td>
+<td>933</td>
+<td>False</td>
+<td>True</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">ceftazidime</th>
+<td>3881</td>
+<td>10.2</td>
+<td>943</td>
+<td>7.5</td>
+<td>921</td>
+<td>9.6</td>
+<td>921</td>
+<td>False</td>
+<td>True</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">piperacillin/tazobactam</th>
+<td>3823</td>
+<td>4.3</td>
+<td>902</td>
+<td>5.7</td>
+<td>892</td>
+<td>3.6</td>
+<td>892</td>
+<td>False</td>
+<td>False</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">cefotaxime</th>
+<td>3654</td>
+<td>16.7</td>
+<td>862</td>
+<td>8.9</td>
+<td>852</td>
+<td>11.5</td>
+<td>852</td>
+<td>False</td>
+<td>True</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+</section>
+<section id="candidats-retenus" class="level2">
+<h2 class="anchored" data-anchor-id="candidats-retenus">5. Candidats retenus</h2>
+<p>La liste des ATB à traiter est <strong>dérivée</strong> des critères de la section 4, plus tapée à la main :</p>
+<ul>
+<li><code>CANDIDATS_STRICT</code> : les ATB qui respectent le critère strict ;</li>
+<li><code>CANDIDATS_LARGE</code> : ceux qui respectent le critère élargi.</li>
+</ul>
+<p>Par défaut, <code>ATB_CIBLES = CANDIDATS_LARGE</code> pour la boucle de la section 9. Un sous-ensemble manuel — les 5 stricts + <code>gentamicin</code>, <code>ceftazidime</code>, <code>cefotaxime</code> — est proposé en commentaire pour reproduire les rapports.</p>
+<div id="cf2ec4db" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-12T17:20:37.555630Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-11-12T17:20:37.555482Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-11-12T17:20:37.558780Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-12T17:20:37.558281Z&quot;}}" data-execution_count="19">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Candidats calculés à la section 4 :</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="co">#   CANDIDATS_STRICT : critère strict  (&gt;= 10 % de classe minoritaire)</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="co">#   CANDIDATS_LARGE  : critère élargi  (&gt;= 5 % de classe minoritaire)</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="co">#</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Par défaut : tous les candidats élargis.</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>ATB_CIBLES <span class="op">=</span> CANDIDATS_STRICT</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Sous-ensemble manuel utilisé dans les rapports (5 stricts + 3 ATB utiles) :</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a><span class="co"># ATB_CIBLES = [</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="co">#     "ciprofloxacin",</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="co">#     "ampicillin",</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="co">#     "cefuroxime",</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a><span class="co">#     "amoxicillin/clavulanic acid",</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a><span class="co">#     "trimethoprim/sulfamethoxazole",</span></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a><span class="co">#     "gentamicin",</span></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a><span class="co">#     "ceftazidime",</span></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a><span class="co">#     "cefotaxime",</span></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a><span class="co"># ]</span></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>missing <span class="op">=</span> [atb <span class="cf">for</span> atb <span class="kw">in</span> ATB_CIBLES <span class="cf">if</span> atb <span class="kw">not</span> <span class="kw">in</span> data[<span class="st">"Y_train"</span>].columns]</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="kw">not</span> missing, <span class="ss">f"ATB absents des colonnes de Y : </span><span class="sc">{</span>missing<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="bu">len</span>(ATB_CIBLES)<span class="sc">}</span><span class="ss"> ATB ciblés sur </span><span class="sc">{</span><span class="bu">len</span>(CANDIDATS_LARGE)<span class="sc">}</span><span class="ss"> candidats élargis"</span>)</span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>ATB_CIBLES</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>9 ATB ciblés sur 14 candidats élargis</code></pre>
+</div>
+<div class="cell-output cell-output-display" data-execution_count="19">
+<pre><code>['ciprofloxacin',
+ 'ampicillin',
+ 'cefuroxime',
+ 'amoxicillin/clavulanic acid',
+ 'trimethoprim/sulfamethoxazole',
+ 'amoxicillin',
+ 'tobramycin',
+ 'trimethoprim',
+ 'cefepime']</code></pre>
+</div>
+</div>
+</section>
+<section id="sélection-de-lantibiotique-à-explorer" class="level2">
+<h2 class="anchored" data-anchor-id="sélection-de-lantibiotique-à-explorer">6. Sélection de l’antibiotique à explorer</h2>
+<p><code>pick_antibiotic</code> prépare les splits de l’ATB choisi et les expose dans les variables globales <code>X_train</code>, <code>y_train</code>, <code>X_val</code>, <code>y_val</code>, <code>X_test</code>, <code>y_test</code> : les cellules de la section 7 n’ont donc pas besoin de connaître son nom.</p>
+<p>La fonction vérifie aussi que l’ATB fait partie de <code>CANDIDATS_LARGE</code> et prévient sinon. Pour changer d’antibiotique, il suffit de modifier <code>ATB</code> ci-dessous.</p>
+<div id="cf5f4577" class="cell" data-execution_count="22">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="co">#  SÉLECTION DE L'ANTIBIOTIQUE À EXPLORER</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="co"># ============================================================</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> src.pipeline <span class="im">import</span> prepare_data_for_atb</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="co"># définition de l'antiobiotique explorer</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>ATB <span class="op">=</span> <span class="st">"cefuroxime"</span>  </span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a><span class="co"># on prépare les splits train, val et test pour l'ATP choisi</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> pick_antibiotic(atb: <span class="bu">str</span>, verbose: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>) <span class="op">-&gt;</span> <span class="bu">dict</span>:</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">global</span> X_train, y_train, X_val, y_val, X_test, y_test, splits_atb</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>    available <span class="op">=</span> data[<span class="st">"Y_train"</span>].columns.tolist()</span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> atb <span class="kw">not</span> <span class="kw">in</span> available:</span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">KeyError</span>(</span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>            <span class="ss">f"</span><span class="sc">{</span>atb<span class="sc">!r}</span><span class="ss"> n'est pas un antibiotique du jeu de données. "</span></span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>            <span class="ss">f"Choix possibles (</span><span class="sc">{</span><span class="bu">len</span>(available)<span class="sc">}</span><span class="ss">) : </span><span class="sc">{</span>available<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> atb <span class="kw">not</span> <span class="kw">in</span> CANDIDATS_LARGE:</span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(</span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>            <span class="ss">f"⚠️  </span><span class="sc">{</span>atb<span class="sc">!r}</span><span class="ss"> ne respecte pas le critère de sélection"</span></span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>            <span class="ss">f"(&gt;= </span><span class="sc">{</span>MIN_SAMPLES<span class="sc">}</span><span class="ss"> testés et &gt;= 5 % de classe minoritaire).</span><span class="ch">\n</span><span class="ss">"</span></span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>            <span class="ss">f"    Candidats : </span><span class="sc">{</span>CANDIDATS_LARGE<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a>    splits_atb <span class="op">=</span> prepare_data_for_atb(atb, data)</span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a>    X_train, y_train <span class="op">=</span> splits_atb[<span class="st">"train"</span>]</span>
+<span id="cb13-31"><a href="#cb13-31" aria-hidden="true" tabindex="-1"></a>    X_val, y_val <span class="op">=</span> splits_atb[<span class="st">"val"</span>]</span>
+<span id="cb13-32"><a href="#cb13-32" aria-hidden="true" tabindex="-1"></a>    X_test, y_test <span class="op">=</span> splits_atb[<span class="st">"test"</span>]</span>
+<span id="cb13-33"><a href="#cb13-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-34"><a href="#cb13-34" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> verbose:</span>
+<span id="cb13-35"><a href="#cb13-35" aria-hidden="true" tabindex="-1"></a>        row <span class="op">=</span> coverage.loc[atb]</span>
+<span id="cb13-36"><a href="#cb13-36" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"Antibiotique  : </span><span class="sc">{</span>atb<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb13-37"><a href="#cb13-37" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(</span>
+<span id="cb13-38"><a href="#cb13-38" aria-hidden="true" tabindex="-1"></a>            <span class="ss">f"n testés      : </span><span class="sc">{</span>row[<span class="st">'n_train'</span>]<span class="sc">:.0f}</span><span class="ss"> / </span><span class="sc">{</span>row[<span class="st">'n_val'</span>]<span class="sc">:.0f}</span><span class="ss"> / "</span></span>
+<span id="cb13-39"><a href="#cb13-39" aria-hidden="true" tabindex="-1"></a>            <span class="ss">f"</span><span class="sc">{</span>row[<span class="st">'n_test'</span>]<span class="sc">:.0f}</span><span class="ss">  (train / val / test)"</span></span>
+<span id="cb13-40"><a href="#cb13-40" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb13-41"><a href="#cb13-41" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(</span>
+<span id="cb13-42"><a href="#cb13-42" aria-hidden="true" tabindex="-1"></a>            <span class="st">"prévalence R  : "</span></span>
+<span id="cb13-43"><a href="#cb13-43" aria-hidden="true" tabindex="-1"></a>            <span class="ss">f"</span><span class="sc">{</span>y_train<span class="sc">.</span>mean()<span class="sc">:.1%}</span><span class="ss"> / </span><span class="sc">{</span>y_val<span class="sc">.</span>mean()<span class="sc">:.1%}</span><span class="ss"> / </span><span class="sc">{</span>y_test<span class="sc">.</span>mean()<span class="sc">:.1%}</span><span class="ss"> "</span></span>
+<span id="cb13-44"><a href="#cb13-44" aria-hidden="true" tabindex="-1"></a>            <span class="st">"(train / val / test)"</span></span>
+<span id="cb13-45"><a href="#cb13-45" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb13-46"><a href="#cb13-46" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"features      : </span><span class="sc">{</span>X_train<span class="sc">.</span>shape[<span class="dv">1</span>]<span class="sc">:,}</span><span class="ss">"</span>)</span>
+<span id="cb13-47"><a href="#cb13-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-48"><a href="#cb13-48" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> splits_atb</span>
+<span id="cb13-49"><a href="#cb13-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-50"><a href="#cb13-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-51"><a href="#cb13-51" aria-hidden="true" tabindex="-1"></a>splits_atb <span class="op">=</span> pick_antibiotic(ATB)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Antibiotique  : cefuroxime
+n testés      : 2676 / 769 / 656  (train / val / test)
+prévalence R  : 14.3% / 11.6% / 11.0% (train / val / test)
+features      : 34,744</code></pre>
+</div>
+</div>
+</section>
+<section id="exploration-détaillée-de-lantibiotique-choisi" class="level2">
+<h2 class="anchored" data-anchor-id="exploration-détaillée-de-lantibiotique-choisi">7. Exploration détaillée de l’antibiotique choisi</h2>
+<p>Nous allons reprendre la démarche détaillée de <code>exploration_benjamin.ipynb</code> pour l’ATB sélectionné en section 6 :</p>
+<ul>
+<li>régression logistique classique et pénalisée L1 (sélection de variables) ;</li>
+<li>RandomForest et XGBoost ;</li>
+<li>comparaison des modèles, choix du seuil sur la validation, calibration ;</li>
+<li>évaluation sur le test, SHAP et analyse d’erreurs ;</li>
+<li>MLP PyTorch, sans puis avec sélection de variables.</li>
+</ul>
+<p>Toutes les cellules s’adaptent automatiquement à <code>ATB</code>.</p>
+<section id="imports-et-fonction-dévaluation" class="level3">
+<h3 class="anchored" data-anchor-id="imports-et-fonction-dévaluation">7.1 Imports et fonction d’évaluation</h3>
+<div id="a713ad7f" class="cell" data-execution_count="25">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># on défini on fonction qui choisi le seuil maximisant le score F1 sur le jeu de données de validation</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> best_f1_threshold(model, X, y) <span class="op">-&gt;</span> <span class="bu">float</span>:</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    proba <span class="op">=</span> model.predict_proba(X)[:, <span class="dv">1</span>]</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    prec, rec, thr <span class="op">=</span> precision_recall_curve(y, proba)</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    f1 <span class="op">=</span> <span class="dv">2</span> <span class="op">*</span> prec <span class="op">*</span> rec <span class="op">/</span> np.clip(prec <span class="op">+</span> rec, <span class="fl">1e-9</span>, <span class="va">None</span>)</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">float</span>(thr[np.argmax(f1[:<span class="op">-</span><span class="dv">1</span>])])</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a><span class="co"># on défini une fonction d'évaluation d'un modèle</span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> evaluate(name, model, X, y, threshold: <span class="bu">float</span> <span class="op">=</span> <span class="fl">0.5</span>) <span class="op">-&gt;</span> <span class="bu">dict</span>:</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>    proba <span class="op">=</span> model.predict_proba(X)[:, <span class="dv">1</span>]</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>    pred <span class="op">=</span> (proba <span class="op">&gt;=</span> threshold).astype(<span class="bu">int</span>)</span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>    metrics <span class="op">=</span> {</span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>        <span class="st">"model"</span>: name,</span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>        <span class="st">"accuracy"</span>: accuracy_score(y, pred),</span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>        <span class="st">"balanced_acc"</span>: balanced_accuracy_score(y, pred),</span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a>        <span class="st">"precision"</span>: precision_score(y, pred, zero_division<span class="op">=</span><span class="dv">0</span>),</span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a>        <span class="st">"recall"</span>: recall_score(y, pred, zero_division<span class="op">=</span><span class="dv">0</span>),</span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a>        <span class="st">"f1"</span>: f1_score(y, pred, zero_division<span class="op">=</span><span class="dv">0</span>),</span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a>        <span class="st">"roc_auc"</span>: roc_auc_score(y, proba),</span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a>        <span class="st">"pr_auc"</span>: average_precision_score(y, proba),</span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb15-23"><a href="#cb15-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-24"><a href="#cb15-24" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">=== </span><span class="sc">{</span>name<span class="sc">}</span><span class="ss"> (seuil = </span><span class="sc">{</span>threshold<span class="sc">:.3f}</span><span class="ss">) ==="</span>)</span>
+<span id="cb15-25"><a href="#cb15-25" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Accuracy          : </span><span class="sc">{</span>metrics[<span class="st">'accuracy'</span>]<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb15-26"><a href="#cb15-26" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Balanced accuracy : </span><span class="sc">{</span>metrics[<span class="st">'balanced_acc'</span>]<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb15-27"><a href="#cb15-27" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Precision         : </span><span class="sc">{</span>metrics[<span class="st">'precision'</span>]<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb15-28"><a href="#cb15-28" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Recall            : </span><span class="sc">{</span>metrics[<span class="st">'recall'</span>]<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb15-29"><a href="#cb15-29" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"F1                : </span><span class="sc">{</span>metrics[<span class="st">'f1'</span>]<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb15-30"><a href="#cb15-30" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"ROC-AUC           : </span><span class="sc">{</span>metrics[<span class="st">'roc_auc'</span>]<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb15-31"><a href="#cb15-31" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"PR-AUC            : </span><span class="sc">{</span>metrics[<span class="st">'pr_auc'</span>]<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb15-32"><a href="#cb15-32" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(pd.DataFrame(</span>
+<span id="cb15-33"><a href="#cb15-33" aria-hidden="true" tabindex="-1"></a>        confusion_matrix(y, pred),</span>
+<span id="cb15-34"><a href="#cb15-34" aria-hidden="true" tabindex="-1"></a>        index<span class="op">=</span>[<span class="st">"Observé 0"</span>, <span class="st">"Observé 1"</span>],</span>
+<span id="cb15-35"><a href="#cb15-35" aria-hidden="true" tabindex="-1"></a>        columns<span class="op">=</span>[<span class="st">"Prédit 0"</span>, <span class="st">"Prédit 1"</span>],</span>
+<span id="cb15-36"><a href="#cb15-36" aria-hidden="true" tabindex="-1"></a>    ))</span>
+<span id="cb15-37"><a href="#cb15-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-38"><a href="#cb15-38" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> metrics</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="régression-logistique" class="level3">
+<h3 class="anchored" data-anchor-id="régression-logistique">7.2 Régression logistique</h3>
+<section id="régression-logistique-classique" class="level4">
+<h4 class="anchored" data-anchor-id="régression-logistique-classique">7.2.1 Régression logistique classique</h4>
+<div id="04729a31" class="cell" data-execution_count="26">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># on défini le modèle </span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>model_lr <span class="op">=</span> LogisticRegression(random_state<span class="op">=</span>SEED, max_iter<span class="op">=</span><span class="dv">2000</span>)</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="co"># on entraîne le modèle</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>model_lr.fit(X_train, y_train)</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a><span class="co"># on évalue le modèle</span></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>res_lr <span class="op">=</span> evaluate(<span class="st">"Régression logistique — validation"</span>, model_lr, X_val, y_val)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+=== Régression logistique — validation (seuil = 0.500) ===
+Accuracy          : 0.919
+Balanced accuracy : 0.710
+Precision         : 0.765
+Recall            : 0.438
+F1                : 0.557
+ROC-AUC           : 0.753
+PR-AUC            : 0.593
+           Prédit 0  Prédit 1
+Observé 0       668        12
+Observé 1        50        39</code></pre>
+</div>
+</div>
+</section>
+<section id="régression-logistique-pénalisée-l1-lasso" class="level4">
+<h4 class="anchored" data-anchor-id="régression-logistique-pénalisée-l1-lasso">7.2.2 Régression logistique pénalisée L1 (LASSO)</h4>
+<p>On balaie plusieurs valeurs de l’hyperparamètre <code>C</code> et on garde celle qui maximise la PR-AUC de validation.</p>
+<div id="a4a6945b" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>C_values <span class="op">=</span> [<span class="fl">0.001</span>, <span class="fl">0.005</span>, <span class="fl">0.01</span>, <span class="fl">0.05</span>, <span class="fl">0.1</span>, <span class="fl">0.5</span>, <span class="fl">1.0</span>, <span class="fl">5.0</span>]</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>models_l1 <span class="op">=</span> {}</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>rows_l1 <span class="op">=</span> []</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> C <span class="kw">in</span> C_values:</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>    pipe <span class="op">=</span> Pipeline([</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>        (<span class="st">"scaler"</span>, StandardScaler()),</span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>        (<span class="st">"clf"</span>, LogisticRegression(</span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>            l1_ratio<span class="op">=</span><span class="fl">1.0</span>,</span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>            solver<span class="op">=</span><span class="st">"liblinear"</span>,</span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>            C<span class="op">=</span>C,</span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>            max_iter<span class="op">=</span><span class="dv">5000</span>,</span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>            random_state<span class="op">=</span>SEED,</span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a>        )),</span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a>    ])</span>
+<span id="cb18-17"><a href="#cb18-17" aria-hidden="true" tabindex="-1"></a>    pipe.fit(X_train, y_train)</span>
+<span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a>    m <span class="op">=</span> evaluate(<span class="ss">f"LR-L1 C=</span><span class="sc">{</span>C<span class="sc">}</span><span class="ss">"</span>, pipe, X_val, y_val)</span>
+<span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a>    m[<span class="st">"C"</span>] <span class="op">=</span> C</span>
+<span id="cb18-20"><a href="#cb18-20" aria-hidden="true" tabindex="-1"></a>    m[<span class="st">"n_features"</span>] <span class="op">=</span> <span class="bu">int</span>((pipe.named_steps[<span class="st">"clf"</span>].coef_.ravel() <span class="op">!=</span> <span class="dv">0</span>).<span class="bu">sum</span>())</span>
+<span id="cb18-21"><a href="#cb18-21" aria-hidden="true" tabindex="-1"></a>    models_l1[C] <span class="op">=</span> pipe</span>
+<span id="cb18-22"><a href="#cb18-22" aria-hidden="true" tabindex="-1"></a>    rows_l1.append(m)</span>
+<span id="cb18-23"><a href="#cb18-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-24"><a href="#cb18-24" aria-hidden="true" tabindex="-1"></a>comparison_l1 <span class="op">=</span> pd.DataFrame(rows_l1).set_index(<span class="st">"model"</span>)</span>
+<span id="cb18-25"><a href="#cb18-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-26"><a href="#cb18-26" aria-hidden="true" tabindex="-1"></a><span class="co"># C retenu : celui qui maximise la PR-AUC de validation</span></span>
+<span id="cb18-27"><a href="#cb18-27" aria-hidden="true" tabindex="-1"></a>best_C <span class="op">=</span> comparison_l1.loc[comparison_l1[<span class="st">"pr_auc"</span>].idxmax(), <span class="st">"C"</span>]</span>
+<span id="cb18-28"><a href="#cb18-28" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"C retenu (PR-AUC max) : </span><span class="sc">{</span>best_C<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb18-29"><a href="#cb18-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-30"><a href="#cb18-30" aria-hidden="true" tabindex="-1"></a>best_pipe <span class="op">=</span> models_l1[best_C]</span>
+<span id="cb18-31"><a href="#cb18-31" aria-hidden="true" tabindex="-1"></a>coefs <span class="op">=</span> best_pipe.named_steps[<span class="st">"clf"</span>].coef_.ravel()</span>
+<span id="cb18-32"><a href="#cb18-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-33"><a href="#cb18-33" aria-hidden="true" tabindex="-1"></a>selected <span class="op">=</span> pd.DataFrame({</span>
+<span id="cb18-34"><a href="#cb18-34" aria-hidden="true" tabindex="-1"></a>    <span class="st">"feature"</span>: X_train.columns,</span>
+<span id="cb18-35"><a href="#cb18-35" aria-hidden="true" tabindex="-1"></a>    <span class="st">"coef"</span>: coefs,</span>
+<span id="cb18-36"><a href="#cb18-36" aria-hidden="true" tabindex="-1"></a>    <span class="st">"abs_coef"</span>: np.<span class="bu">abs</span>(coefs),</span>
+<span id="cb18-37"><a href="#cb18-37" aria-hidden="true" tabindex="-1"></a>})</span>
+<span id="cb18-38"><a href="#cb18-38" aria-hidden="true" tabindex="-1"></a>selected <span class="op">=</span> (selected[selected[<span class="st">"coef"</span>] <span class="op">!=</span> <span class="dv">0</span>]</span>
+<span id="cb18-39"><a href="#cb18-39" aria-hidden="true" tabindex="-1"></a>            .sort_values(<span class="st">"abs_coef"</span>, ascending<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb18-40"><a href="#cb18-40" aria-hidden="true" tabindex="-1"></a>            .reset_index(drop<span class="op">=</span><span class="va">True</span>))</span>
+<span id="cb18-41"><a href="#cb18-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-42"><a href="#cb18-42" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="bu">len</span>(selected)<span class="sc">}</span><span class="ss"> features sélectionnées sur </span><span class="sc">{</span><span class="bu">len</span>(coefs)<span class="sc">}</span><span class="ss"> "</span></span>
+<span id="cb18-43"><a href="#cb18-43" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"(</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> <span class="bu">len</span>(selected) <span class="op">/</span> <span class="bu">len</span>(coefs)<span class="sc">:.2f}</span><span class="ss">%)"</span>)</span>
+<span id="cb18-44"><a href="#cb18-44" aria-hidden="true" tabindex="-1"></a>selected.head(<span class="dv">30</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+=== LR-L1 C=0.001 (seuil = 0.500) ===
+Accuracy          : 0.116
+Balanced accuracy : 0.500
+Precision         : 0.116
+Recall            : 1.000
+F1                : 0.207
+ROC-AUC           : 0.500
+PR-AUC            : 0.116
+           Prédit 0  Prédit 1
+Observé 0         0       680
+Observé 1         0        89
+
+=== LR-L1 C=0.005 (seuil = 0.500) ===
+Accuracy          : 0.887
+Balanced accuracy : 0.511
+Precision         : 1.000
+Recall            : 0.022
+F1                : 0.044
+ROC-AUC           : 0.824
+PR-AUC            : 0.593
+           Prédit 0  Prédit 1
+Observé 0       680         0
+Observé 1        87         2
+
+=== LR-L1 C=0.01 (seuil = 0.500) ===
+Accuracy          : 0.922
+Balanced accuracy : 0.673
+Precision         : 0.939
+Recall            : 0.348
+F1                : 0.508
+ROC-AUC           : 0.849
+PR-AUC            : 0.662
+           Prédit 0  Prédit 1
+Observé 0       678         2
+Observé 1        58        31
+
+=== LR-L1 C=0.05 (seuil = 0.500) ===
+Accuracy          : 0.922
+Balanced accuracy : 0.707
+Precision         : 0.809
+Recall            : 0.427
+F1                : 0.559
+ROC-AUC           : 0.838
+PR-AUC            : 0.617
+           Prédit 0  Prédit 1
+Observé 0       671         9
+Observé 1        51        38
+
+=== LR-L1 C=0.1 (seuil = 0.500) ===
+Accuracy          : 0.893
+Balanced accuracy : 0.696
+Precision         : 0.549
+Recall            : 0.438
+F1                : 0.487
+ROC-AUC           : 0.801
+PR-AUC            : 0.557
+           Prédit 0  Prédit 1
+Observé 0       648        32
+Observé 1        50        39
+
+=== LR-L1 C=0.5 (seuil = 0.500) ===
+Accuracy          : 0.888
+Balanced accuracy : 0.707
+Precision         : 0.519
+Recall            : 0.472
+F1                : 0.494
+ROC-AUC           : 0.789
+PR-AUC            : 0.519
+           Prédit 0  Prédit 1
+Observé 0       641        39
+Observé 1        47        42
+
+=== LR-L1 C=1.0 (seuil = 0.500) ===
+Accuracy          : 0.889
+Balanced accuracy : 0.708
+Precision         : 0.525
+Recall            : 0.472
+F1                : 0.497
+ROC-AUC           : 0.787
+PR-AUC            : 0.543
+           Prédit 0  Prédit 1
+Observé 0       642        38
+Observé 1        47        42</code></pre>
+</div>
+<div class="cell-output cell-output-error">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-red-fg">---------------------------------------------------------------------------</span>
+<span class="ansi-red-fg">KeyboardInterrupt</span>                         Traceback (most recent call last)
+<span class="ansi-cyan-fg">Cell</span><span class="ansi-cyan-fg"> </span><span class="ansi-green-fg">In[35]</span><span class="ansi-green-fg">, line 17</span>
+<span class="ansi-green-fg">      6</span> <span style="font-weight:bold;color:rgb(0,135,0)">for</span> C <span style="font-weight:bold;color:rgb(175,0,255)">in</span> C_values:
+<span class="ansi-green-fg">      7</span>     pipe = Pipeline([
+<span class="ansi-green-fg">      8</span>         (<span class="ansi-yellow-fg">"</span><span class="ansi-yellow-fg">scaler</span><span class="ansi-yellow-fg">"</span>, StandardScaler()),
+<span class="ansi-green-fg">      9</span>         (<span class="ansi-yellow-fg">"</span><span class="ansi-yellow-fg">clf</span><span class="ansi-yellow-fg">"</span>, LogisticRegression(
+<span class="ansi-green-fg">   (...)</span><span class="ansi-green-fg">     15</span>         )),
+<span class="ansi-green-fg">     16</span>     ])
+<span class="ansi-green-fg">---&gt; </span><span class="ansi-green-fg">17</span>     <span class="ansi-yellow-bg">pipe</span><span class="ansi-yellow-bg">.</span><span class="ansi-yellow-bg">fit</span><span class="ansi-yellow-bg">(</span><span class="ansi-yellow-bg">X_train</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg">y_train</span><span class="ansi-yellow-bg">)</span>
+<span class="ansi-green-fg">     18</span>     m = evaluate(<span class="ansi-yellow-fg">f</span><span class="ansi-yellow-fg">"</span><span class="ansi-yellow-fg">LR-L1 C=</span><span style="font-weight:bold;color:rgb(175,95,135)">{</span>C<span style="font-weight:bold;color:rgb(175,95,135)">}</span><span class="ansi-yellow-fg">"</span>, pipe, X_val, y_val)
+<span class="ansi-green-fg">     19</span>     m[<span class="ansi-yellow-fg">"</span><span class="ansi-yellow-fg">C</span><span class="ansi-yellow-fg">"</span>] = C
+
+<span class="ansi-cyan-fg">File </span><span class="ansi-green-fg">~/.pyenv/versions/3.12.4/lib/python3.12/site-packages/sklearn/base.py:1336</span>, in <span class="ansi-cyan-fg">_fit_context.&lt;locals&gt;.decorator.&lt;locals&gt;.wrapper</span><span class="ansi-blue-fg">(estimator, *args, **kwargs)</span>
+<span class="ansi-green-fg">   1329</span>     estimator._validate_params()
+<span class="ansi-green-fg">   1331</span> <span style="font-weight:bold;color:rgb(0,135,0)">with</span> config_context(
+<span class="ansi-green-fg">   1332</span>     skip_parameter_validation=(
+<span class="ansi-green-fg">   1333</span>         prefer_skip_nested_validation <span style="font-weight:bold;color:rgb(175,0,255)">or</span> global_skip_validation
+<span class="ansi-green-fg">   1334</span>     )
+<span class="ansi-green-fg">   1335</span> ):
+<span class="ansi-green-fg">-&gt; </span><span class="ansi-green-fg">1336</span>     <span style="font-weight:bold;color:rgb(0,135,0)">return</span> <span class="ansi-yellow-bg">fit_method</span><span class="ansi-yellow-bg">(</span><span class="ansi-yellow-bg">estimator</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg">*</span><span class="ansi-yellow-bg">args</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg">*</span><span class="ansi-yellow-bg">*</span><span class="ansi-yellow-bg">kwargs</span><span class="ansi-yellow-bg">)</span>
+
+<span class="ansi-cyan-fg">File </span><span class="ansi-green-fg">~/.pyenv/versions/3.12.4/lib/python3.12/site-packages/sklearn/pipeline.py:621</span>, in <span class="ansi-cyan-fg">Pipeline.fit</span><span class="ansi-blue-fg">(self, X, y, **params)</span>
+<span class="ansi-green-fg">    615</span>     <span style="font-weight:bold;color:rgb(0,135,0)">if</span> <span style="color:rgb(0,135,0)">self</span>._final_estimator != <span class="ansi-yellow-fg">"</span><span class="ansi-yellow-fg">passthrough</span><span class="ansi-yellow-fg">"</span>:
+<span class="ansi-green-fg">    616</span>         last_step_params = <span style="color:rgb(0,135,0)">self</span>._get_metadata_for_step(
+<span class="ansi-green-fg">    617</span>             step_idx=<span style="color:rgb(0,135,0)">len</span>(<span style="color:rgb(0,135,0)">self</span>) - <span class="ansi-green-fg">1</span>,
+<span class="ansi-green-fg">    618</span>             step_params=routed_params[<span style="color:rgb(0,135,0)">self</span>.steps[-<span class="ansi-green-fg">1</span>][<span class="ansi-green-fg">0</span>]],
+<span class="ansi-green-fg">    619</span>             all_params=params,
+<span class="ansi-green-fg">    620</span>         )
+<span class="ansi-green-fg">--&gt; </span><span class="ansi-green-fg">621</span>         <span style="color:rgb(0,135,0)" class="ansi-yellow-bg">self</span><span class="ansi-yellow-bg">.</span><span class="ansi-yellow-bg">_final_estimator</span><span class="ansi-yellow-bg">.</span><span class="ansi-yellow-bg">fit</span><span class="ansi-yellow-bg">(</span><span class="ansi-yellow-bg">Xt</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg">y</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg">*</span><span class="ansi-yellow-bg">*</span><span class="ansi-yellow-bg">last_step_params</span><span class="ansi-yellow-bg">[</span><span class="ansi-yellow-fg ansi-yellow-bg">"</span><span class="ansi-yellow-fg ansi-yellow-bg">fit</span><span class="ansi-yellow-fg ansi-yellow-bg">"</span><span class="ansi-yellow-bg">]</span><span class="ansi-yellow-bg">)</span>
+<span class="ansi-green-fg">    623</span> <span style="font-weight:bold;color:rgb(0,135,0)">return</span> <span style="color:rgb(0,135,0)">self</span>
+
+<span class="ansi-cyan-fg">File </span><span class="ansi-green-fg">~/.pyenv/versions/3.12.4/lib/python3.12/site-packages/sklearn/base.py:1336</span>, in <span class="ansi-cyan-fg">_fit_context.&lt;locals&gt;.decorator.&lt;locals&gt;.wrapper</span><span class="ansi-blue-fg">(estimator, *args, **kwargs)</span>
+<span class="ansi-green-fg">   1329</span>     estimator._validate_params()
+<span class="ansi-green-fg">   1331</span> <span style="font-weight:bold;color:rgb(0,135,0)">with</span> config_context(
+<span class="ansi-green-fg">   1332</span>     skip_parameter_validation=(
+<span class="ansi-green-fg">   1333</span>         prefer_skip_nested_validation <span style="font-weight:bold;color:rgb(175,0,255)">or</span> global_skip_validation
+<span class="ansi-green-fg">   1334</span>     )
+<span class="ansi-green-fg">   1335</span> ):
+<span class="ansi-green-fg">-&gt; </span><span class="ansi-green-fg">1336</span>     <span style="font-weight:bold;color:rgb(0,135,0)">return</span> <span class="ansi-yellow-bg">fit_method</span><span class="ansi-yellow-bg">(</span><span class="ansi-yellow-bg">estimator</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg">*</span><span class="ansi-yellow-bg">args</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg">*</span><span class="ansi-yellow-bg">*</span><span class="ansi-yellow-bg">kwargs</span><span class="ansi-yellow-bg">)</span>
+
+<span class="ansi-cyan-fg">File </span><span class="ansi-green-fg">~/.pyenv/versions/3.12.4/lib/python3.12/site-packages/sklearn/linear_model/_logistic.py:1220</span>, in <span class="ansi-cyan-fg">LogisticRegression.fit</span><span class="ansi-blue-fg">(self, X, y, sample_weight)</span>
+<span class="ansi-green-fg">   1214</span>     <span style="font-weight:bold;color:rgb(0,135,0)">if</span> np.max(X) &gt; <span class="ansi-green-fg">1e30</span>:
+<span class="ansi-green-fg">   1215</span>         <span style="font-weight:bold;color:rgb(0,135,0)">raise</span> <span style="font-weight:bold;color:rgb(215,95,95)">ValueError</span>(
+<span class="ansi-green-fg">   1216</span>             <span class="ansi-yellow-fg">"</span><span class="ansi-yellow-fg">Using the </span><span class="ansi-yellow-fg">'</span><span class="ansi-yellow-fg">liblinear</span><span class="ansi-yellow-fg">'</span><span class="ansi-yellow-fg"> solver while X contains a maximum </span><span class="ansi-yellow-fg">"</span>
+<span class="ansi-green-fg">   1217</span>             <span class="ansi-yellow-fg">"</span><span class="ansi-yellow-fg">value &gt; 1e30 results in a frozen fit. Please choose another </span><span class="ansi-yellow-fg">"</span>
+<span class="ansi-green-fg">   1218</span>             <span class="ansi-yellow-fg">"</span><span class="ansi-yellow-fg">solver or rescale the input X.</span><span class="ansi-yellow-fg">"</span>
+<span class="ansi-green-fg">   1219</span>         )
+<span class="ansi-green-fg">-&gt; </span><span class="ansi-green-fg">1220</span>     <span style="color:rgb(0,135,0)">self</span>.coef_, <span style="color:rgb(0,135,0)">self</span>.intercept_, <span style="color:rgb(0,135,0)">self</span>.n_iter_ = <span class="ansi-yellow-bg">_fit_liblinear</span><span class="ansi-yellow-bg">(</span>
+<span class="ansi-green-fg">   1221</span> <span class="ansi-yellow-bg">        </span><span class="ansi-yellow-bg">X</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1222</span> <span class="ansi-yellow-bg">        </span><span class="ansi-yellow-bg">y</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1223</span> <span class="ansi-yellow-bg">        </span><span style="color:rgb(0,135,0)" class="ansi-yellow-bg">self</span><span class="ansi-yellow-bg">.</span><span class="ansi-yellow-bg">C</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1224</span> <span class="ansi-yellow-bg">        </span><span style="color:rgb(0,135,0)" class="ansi-yellow-bg">self</span><span class="ansi-yellow-bg">.</span><span class="ansi-yellow-bg">fit_intercept</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1225</span> <span class="ansi-yellow-bg">        </span><span style="color:rgb(0,135,0)" class="ansi-yellow-bg">self</span><span class="ansi-yellow-bg">.</span><span class="ansi-yellow-bg">intercept_scaling</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1226</span> <span class="ansi-yellow-bg">        </span><span style="color:rgb(0,135,0)" class="ansi-yellow-bg">self</span><span class="ansi-yellow-bg">.</span><span class="ansi-yellow-bg">class_weight</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1227</span> <span class="ansi-yellow-bg">        </span><span class="ansi-yellow-bg">penalty</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1228</span> <span class="ansi-yellow-bg">        </span><span style="color:rgb(0,135,0)" class="ansi-yellow-bg">self</span><span class="ansi-yellow-bg">.</span><span class="ansi-yellow-bg">dual</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1229</span> <span class="ansi-yellow-bg">        </span><span style="color:rgb(0,135,0)" class="ansi-yellow-bg">self</span><span class="ansi-yellow-bg">.</span><span class="ansi-yellow-bg">verbose</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1230</span> <span class="ansi-yellow-bg">        </span><span style="color:rgb(0,135,0)" class="ansi-yellow-bg">self</span><span class="ansi-yellow-bg">.</span><span class="ansi-yellow-bg">max_iter</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1231</span> <span class="ansi-yellow-bg">        </span><span style="color:rgb(0,135,0)" class="ansi-yellow-bg">self</span><span class="ansi-yellow-bg">.</span><span class="ansi-yellow-bg">tol</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1232</span> <span class="ansi-yellow-bg">        </span><span style="color:rgb(0,135,0)" class="ansi-yellow-bg">self</span><span class="ansi-yellow-bg">.</span><span class="ansi-yellow-bg">random_state</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1233</span> <span class="ansi-yellow-bg">        </span><span class="ansi-yellow-bg">sample_weight</span><span class="ansi-yellow-bg">=</span><span class="ansi-yellow-bg">sample_weight</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1234</span> <span class="ansi-yellow-bg">    </span><span class="ansi-yellow-bg">)</span>
+<span class="ansi-green-fg">   1235</span>     <span style="font-weight:bold;color:rgb(0,135,0)">return</span> <span style="color:rgb(0,135,0)">self</span>
+<span class="ansi-green-fg">   1237</span> <span style="font-weight:bold;color:rgb(0,135,0)">if</span> solver <span style="font-weight:bold;color:rgb(175,0,255)">in</span> [<span class="ansi-yellow-fg">"</span><span class="ansi-yellow-fg">sag</span><span class="ansi-yellow-fg">"</span>, <span class="ansi-yellow-fg">"</span><span class="ansi-yellow-fg">saga</span><span class="ansi-yellow-fg">"</span>]:
+
+<span class="ansi-cyan-fg">File </span><span class="ansi-green-fg">~/.pyenv/versions/3.12.4/lib/python3.12/site-packages/sklearn/svm/_base.py:1238</span>, in <span class="ansi-cyan-fg">_fit_liblinear</span><span class="ansi-blue-fg">(X, y, C, fit_intercept, intercept_scaling, class_weight, penalty, dual, verbose, max_iter, tol, random_state, multi_class, loss, epsilon, sample_weight)</span>
+<span class="ansi-green-fg">   1235</span> sample_weight = _check_sample_weight(sample_weight, X, dtype=np.float64)
+<span class="ansi-green-fg">   1237</span> solver_type = _get_liblinear_solver_type(multi_class, penalty, loss, dual)
+<span class="ansi-green-fg">-&gt; </span><span class="ansi-green-fg">1238</span> raw_coef_, n_iter_ = <span class="ansi-yellow-bg">liblinear</span><span class="ansi-yellow-bg">.</span><span class="ansi-yellow-bg">train_wrap</span><span class="ansi-yellow-bg">(</span>
+<span class="ansi-green-fg">   1239</span> <span class="ansi-yellow-bg">    </span><span class="ansi-yellow-bg">X</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1240</span> <span class="ansi-yellow-bg">    </span><span class="ansi-yellow-bg">y_ind</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1241</span> <span class="ansi-yellow-bg">    </span><span class="ansi-yellow-bg">sp</span><span class="ansi-yellow-bg">.</span><span class="ansi-yellow-bg">issparse</span><span class="ansi-yellow-bg">(</span><span class="ansi-yellow-bg">X</span><span class="ansi-yellow-bg">)</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1242</span> <span class="ansi-yellow-bg">    </span><span class="ansi-yellow-bg">solver_type</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1243</span> <span class="ansi-yellow-bg">    </span><span class="ansi-yellow-bg">tol</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1244</span> <span class="ansi-yellow-bg">    </span><span class="ansi-yellow-bg">bias</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1245</span> <span class="ansi-yellow-bg">    </span><span class="ansi-yellow-bg">C</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1246</span> <span class="ansi-yellow-bg">    </span><span class="ansi-yellow-bg">class_weight_</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1247</span> <span class="ansi-yellow-bg">    </span><span class="ansi-yellow-bg">max_iter</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1248</span> <span class="ansi-yellow-bg">    </span><span class="ansi-yellow-bg">rnd</span><span class="ansi-yellow-bg">.</span><span class="ansi-yellow-bg">randint</span><span class="ansi-yellow-bg">(</span><span class="ansi-yellow-bg">np</span><span class="ansi-yellow-bg">.</span><span class="ansi-yellow-bg">iinfo</span><span class="ansi-yellow-bg">(</span><span class="ansi-yellow-fg ansi-yellow-bg">"</span><span class="ansi-yellow-fg ansi-yellow-bg">i</span><span class="ansi-yellow-fg ansi-yellow-bg">"</span><span class="ansi-yellow-bg">)</span><span class="ansi-yellow-bg">.</span><span class="ansi-yellow-bg">max</span><span class="ansi-yellow-bg">)</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1249</span> <span class="ansi-yellow-bg">    </span><span class="ansi-yellow-bg">epsilon</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1250</span> <span class="ansi-yellow-bg">    </span><span class="ansi-yellow-bg">sample_weight</span><span class="ansi-yellow-bg">,</span>
+<span class="ansi-green-fg">   1251</span> <span class="ansi-yellow-bg">)</span>
+<span class="ansi-green-fg">   1252</span> <span style="font-style:italic;color:rgb(95,135,135)"># Regarding rnd.randint(..) in the above signature:</span>
+<span class="ansi-green-fg">   1253</span> <span style="font-style:italic;color:rgb(95,135,135)"># seed for srand in range [0..INT_MAX); due to limitations in Numpy</span>
+<span class="ansi-green-fg">   1254</span> <span style="font-style:italic;color:rgb(95,135,135)"># on 32-bit platforms, we can't get to the UINT_MAX limit that</span>
+<span class="ansi-green-fg">   1255</span> <span style="font-style:italic;color:rgb(95,135,135)"># srand supports</span>
+<span class="ansi-green-fg">   1256</span> n_iter_max = <span style="color:rgb(0,135,0)">max</span>(n_iter_)
+
+<span class="ansi-red-fg">KeyboardInterrupt</span>: </pre>
+</div>
+</div>
+</div>
+<div id="acd33080" class="cell" data-execution_count="36">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co"># on trace l'évolution de la PR-AUC en fonction de -log(C)</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>fig, ax1 <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">5</span>))</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>ax1.plot(C_values, comparison_l1[<span class="st">"pr_auc"</span>], <span class="st">"o-"</span>, color<span class="op">=</span><span class="st">"blue"</span>, label<span class="op">=</span><span class="st">"PR-AUC"</span>)</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>ax1.set_xscale(<span class="st">"log"</span>)</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>ax1.set_xlabel(<span class="st">"C (échelle log)"</span>)</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>ax1.set_ylabel(<span class="st">"PR-AUC (validation)"</span>, color<span class="op">=</span><span class="st">"blue"</span>)</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>ax1.tick_params(axis<span class="op">=</span><span class="st">"y"</span>, labelcolor<span class="op">=</span><span class="st">"blue"</span>)</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>ax1.grid(alpha<span class="op">=</span><span class="fl">0.3</span>)</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>ax2 <span class="op">=</span> ax1.twinx()</span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>ax2.plot(C_values, comparison_l1[<span class="st">"n_features"</span>], <span class="st">"s--"</span>, color<span class="op">=</span><span class="st">"red"</span>,</span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a>         label<span class="op">=</span><span class="st">"Nb features non nulles"</span>)</span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a>ax2.set_ylabel(<span class="st">"Nb coefficients non nuls"</span>, color<span class="op">=</span><span class="st">"red"</span>)</span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a>ax2.tick_params(axis<span class="op">=</span><span class="st">"y"</span>, labelcolor<span class="op">=</span><span class="st">"red"</span>)</span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a>plt.title(<span class="st">"Parcours L1 : PR-AUC vs nombre de features sélectionnées"</span>)</span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="all_antibiotic_files/figure-html/cell-13-output-1.png" class="img-fluid figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+<div id="0a0f4b77" class="cell" data-execution_count="37">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>top_n <span class="op">=</span> <span class="dv">5</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> selected.empty:</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"Aucune variable sélectionnée par la pénalisation L1."</span>)</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    top <span class="op">=</span> selected.head(top_n).iloc[::<span class="op">-</span><span class="dv">1</span>]</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>    fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="fl">0.32</span> <span class="op">*</span> <span class="bu">len</span>(top) <span class="op">+</span> <span class="fl">1.5</span>))</span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>    colors <span class="op">=</span> [<span class="st">"#d62728"</span> <span class="cf">if</span> v <span class="op">&gt;</span> <span class="dv">0</span> <span class="cf">else</span> <span class="st">"#1f77b4"</span> <span class="cf">for</span> v <span class="kw">in</span> top[<span class="st">"coef"</span>]]</span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>    ax.barh(top[<span class="st">"feature"</span>], top[<span class="st">"coef"</span>], color<span class="op">=</span>colors)</span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>    ax.axvline(<span class="dv">0</span>, color<span class="op">=</span><span class="st">"black"</span>, lw<span class="op">=</span><span class="fl">0.8</span>)</span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>    ax.set_xlabel(<span class="st">"Coefficient (échelle standardisée)"</span>)</span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a>    ax.set_title(<span class="ss">f"Effet des variables les plus fortes — L1 (C = </span><span class="sc">{</span>best_C<span class="sc">}</span><span class="ss">)"</span>)</span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a>    ax.legend(handles<span class="op">=</span>[</span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>        Patch(color<span class="op">=</span><span class="st">"#d62728"</span>, label<span class="op">=</span><span class="st">"résistance"</span>),</span>
+<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a>        Patch(color<span class="op">=</span><span class="st">"#1f77b4"</span>, label<span class="op">=</span><span class="st">"sensibilité"</span>),</span>
+<span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a>    ], loc<span class="op">=</span><span class="st">"lower right"</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb21-18"><a href="#cb21-18" aria-hidden="true" tabindex="-1"></a>    ax.grid(axis<span class="op">=</span><span class="st">"x"</span>, alpha<span class="op">=</span><span class="fl">0.3</span>)</span>
+<span id="cb21-19"><a href="#cb21-19" aria-hidden="true" tabindex="-1"></a>    plt.tight_layout()</span>
+<span id="cb21-20"><a href="#cb21-20" aria-hidden="true" tabindex="-1"></a>    plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>/var/folders/dq/xz942xqn5r54jy9b70nyd5980000gn/T/ipykernel_47329/3700935267.py:19: UserWarning: Tight layout not applied. The left and right margins cannot be made large enough to accommodate all Axes decorations.
+  plt.tight_layout()</code></pre>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="all_antibiotic_files/figure-html/cell-14-output-2.png" class="img-fluid figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+</section>
+<section id="randomforest" class="level3">
+<h3 class="anchored" data-anchor-id="randomforest">7.3 RandomForest</h3>
+<div id="d0986b04" class="cell" data-execution_count="38">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>model_rf <span class="op">=</span> RandomForestClassifier(random_state<span class="op">=</span>SEED, n_jobs<span class="op">=-</span><span class="dv">1</span>)</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>model_rf.fit(X_train, y_train)</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>res_rf <span class="op">=</span> evaluate(<span class="st">"RandomForest — validation"</span>, model_rf, X_val, y_val)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+=== RandomForest — validation (seuil = 0.500) ===
+Accuracy          : 0.915
+Balanced accuracy : 0.649
+Precision         : 0.900
+Recall            : 0.303
+F1                : 0.454
+ROC-AUC           : 0.827
+PR-AUC            : 0.645
+           Prédit 0  Prédit 1
+Observé 0       677         3
+Observé 1        62        27</code></pre>
+</div>
+</div>
+</section>
+<section id="xgboost" class="level3">
+<h3 class="anchored" data-anchor-id="xgboost">7.4 XGBoost</h3>
+<div id="3d942902" class="cell" data-execution_count="31">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>model_xgb <span class="op">=</span> XGBClassifier(random_state<span class="op">=</span>SEED)</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>model_xgb.fit(X_train, y_train)</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>res_xgb <span class="op">=</span> evaluate(<span class="st">"XGBoost — validation"</span>, model_xgb, X_val, y_val)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+=== XGBoost — validation (seuil = 0.500) ===
+Accuracy          : 0.935
+Balanced accuracy : 0.739
+Precision         : 0.915
+Recall            : 0.483
+F1                : 0.632
+ROC-AUC           : 0.831
+PR-AUC            : 0.688
+           Prédit 0  Prédit 1
+Observé 0       676         4
+Observé 1        46        43</code></pre>
+</div>
+</div>
+</section>
+<section id="comparaison-des-modèles" class="level3">
+<h3 class="anchored" data-anchor-id="comparaison-des-modèles">7.5 Comparaison des modèles</h3>
+<div id="879c4ce7" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>rows <span class="op">=</span> []</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>rows.append(evaluate(<span class="st">"LogReg"</span>, model_lr, X_val, y_val))</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>rows.append(evaluate(<span class="st">"RF"</span>, model_rf, X_val, y_val))</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>rows.append(evaluate(<span class="st">"XGB"</span>, model_xgb, X_val, y_val))</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>rows.append(evaluate(<span class="st">"LogReg - L1"</span>, model_lrL1_best_C, X_val, y_val))</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>comparison <span class="op">=</span> pd.DataFrame(rows).set_index(<span class="st">"model"</span>)</span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>comparison.<span class="bu">round</span>(<span class="dv">4</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+=== LogReg (seuil = 0.500) ===
+Accuracy          : 0.919
+Balanced accuracy : 0.710
+Precision         : 0.765
+Recall            : 0.438
+F1                : 0.557
+ROC-AUC           : 0.753
+PR-AUC            : 0.593
+           Prédit 0  Prédit 1
+Observé 0       668        12
+Observé 1        50        39
+
+=== RF (seuil = 0.500) ===
+Accuracy          : 0.915
+Balanced accuracy : 0.649
+Precision         : 0.900
+Recall            : 0.303
+F1                : 0.454
+ROC-AUC           : 0.827
+PR-AUC            : 0.645
+           Prédit 0  Prédit 1
+Observé 0       677         3
+Observé 1        62        27
+
+=== XGB (seuil = 0.500) ===
+Accuracy          : 0.935
+Balanced accuracy : 0.739
+Precision         : 0.915
+Recall            : 0.483
+F1                : 0.632
+ROC-AUC           : 0.831
+PR-AUC            : 0.688
+           Prédit 0  Prédit 1
+Observé 0       676         4
+Observé 1        46        43
+
+=== LogReg - L1 (seuil = 0.500) ===
+Accuracy          : 0.922
+Balanced accuracy : 0.673
+Precision         : 0.939
+Recall            : 0.348
+F1                : 0.508
+ROC-AUC           : 0.849
+PR-AUC            : 0.662
+           Prédit 0  Prédit 1
+Observé 0       678         2
+Observé 1        58        31</code></pre>
+</div>
+<div class="cell-output cell-output-display" data-execution_count="32">
+<div>
+
+
+<table class="dataframe caption-top table table-sm table-striped small" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">accuracy</th>
+<th data-quarto-table-cell-role="th">balanced_acc</th>
+<th data-quarto-table-cell-role="th">precision</th>
+<th data-quarto-table-cell-role="th">recall</th>
+<th data-quarto-table-cell-role="th">f1</th>
+<th data-quarto-table-cell-role="th">roc_auc</th>
+<th data-quarto-table-cell-role="th">pr_auc</th>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">model</th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">LogReg</th>
+<td>0.9194</td>
+<td>0.7103</td>
+<td>0.7647</td>
+<td>0.4382</td>
+<td>0.5571</td>
+<td>0.7535</td>
+<td>0.5929</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">RF</th>
+<td>0.9155</td>
+<td>0.6495</td>
+<td>0.9000</td>
+<td>0.3034</td>
+<td>0.4538</td>
+<td>0.8266</td>
+<td>0.6448</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">XGB</th>
+<td>0.9350</td>
+<td>0.7386</td>
+<td>0.9149</td>
+<td>0.4831</td>
+<td>0.6324</td>
+<td>0.8308</td>
+<td>0.6883</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">LogReg - L1</th>
+<td>0.9220</td>
+<td>0.6727</td>
+<td>0.9394</td>
+<td>0.3483</td>
+<td>0.5082</td>
+<td>0.8488</td>
+<td>0.6624</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+</section>
+<section id="choix-du-seuil-sur-la-validation" class="level3">
+<h3 class="anchored" data-anchor-id="choix-du-seuil-sur-la-validation">7.6 Choix du seuil sur la validation</h3>
+<p>Le seuil est choisi pour maximiser le F1 sur la <strong>validation</strong>, jamais sur le test.</p>
+<div id="2bfb054a" class="cell" data-execution_count="39">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>proba_val_xgb <span class="op">=</span> model_xgb.predict_proba(X_val)[:, <span class="dv">1</span>]</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>prec, rec, thr <span class="op">=</span> precision_recall_curve(y_val, proba_val_xgb)</span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>f1_curve <span class="op">=</span> <span class="dv">2</span> <span class="op">*</span> prec <span class="op">*</span> rec <span class="op">/</span> np.clip(prec <span class="op">+</span> rec, <span class="fl">1e-9</span>, <span class="va">None</span>)</span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>f1_plot <span class="op">=</span> f1_curve[:<span class="op">-</span><span class="dv">1</span>]</span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a>best_thr <span class="op">=</span> <span class="bu">float</span>(thr[np.argmax(f1_plot)])</span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">5</span>))</span>
+<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a>ax.plot(thr, f1_plot, color<span class="op">=</span><span class="st">"blue"</span>, label<span class="op">=</span><span class="st">"F1"</span>)</span>
+<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a>ax.axvline(best_thr, color<span class="op">=</span><span class="st">"red"</span>, linestyle<span class="op">=</span><span class="st">"--"</span>,</span>
+<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a>           label<span class="op">=</span><span class="ss">f"seuil retenu = </span><span class="sc">{</span>best_thr<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb29-13"><a href="#cb29-13" aria-hidden="true" tabindex="-1"></a>ax.axvline(<span class="fl">0.5</span>, color<span class="op">=</span><span class="st">"grey"</span>, linestyle<span class="op">=</span><span class="st">":"</span>, alpha<span class="op">=</span><span class="fl">0.7</span>,</span>
+<span id="cb29-14"><a href="#cb29-14" aria-hidden="true" tabindex="-1"></a>           label<span class="op">=</span><span class="st">"seuil par défaut (0.5)"</span>)</span>
+<span id="cb29-15"><a href="#cb29-15" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"Seuil"</span>)</span>
+<span id="cb29-16"><a href="#cb29-16" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"F1-score"</span>)</span>
+<span id="cb29-17"><a href="#cb29-17" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="ss">f"Évolution du F1 en fonction du seuil — XGBoost (</span><span class="sc">{</span>ATB<span class="sc">}</span><span class="ss">)"</span>)</span>
+<span id="cb29-18"><a href="#cb29-18" aria-hidden="true" tabindex="-1"></a>ax.set_xlim(<span class="dv">0</span>, <span class="dv">1</span>)</span>
+<span id="cb29-19"><a href="#cb29-19" aria-hidden="true" tabindex="-1"></a>ax.set_ylim(<span class="dv">0</span>, <span class="dv">1</span>)</span>
+<span id="cb29-20"><a href="#cb29-20" aria-hidden="true" tabindex="-1"></a>ax.legend()</span>
+<span id="cb29-21"><a href="#cb29-21" aria-hidden="true" tabindex="-1"></a>ax.grid(alpha<span class="op">=</span><span class="fl">0.3</span>)</span>
+<span id="cb29-22"><a href="#cb29-22" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb29-23"><a href="#cb29-23" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb29-24"><a href="#cb29-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-25"><a href="#cb29-25" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"modèle retenu : XGB | seuil F1 max : </span><span class="sc">{</span>best_thr<span class="sc">:.3f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="all_antibiotic_files/figure-html/cell-18-output-1.png" class="img-fluid figure-img"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>modèle retenu : XGB | seuil F1 max : 0.173</code></pre>
+</div>
+</div>
+</section>
+<section id="courbe-de-calibration" class="level3">
+<h3 class="anchored" data-anchor-id="courbe-de-calibration">7.7 Courbe de calibration</h3>
+<div id="d99d96fc" class="cell" data-execution_count="34">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">5</span>, <span class="dv">5</span>))</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>prob_true, prob_pred <span class="op">=</span> calibration_curve(</span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>    y_val, proba_val_xgb, n_bins<span class="op">=</span><span class="dv">10</span>, strategy<span class="op">=</span><span class="st">"quantile"</span></span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>ax.plot(prob_pred, prob_true, <span class="st">"o-"</span>)</span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>ax.plot([<span class="dv">0</span>, <span class="dv">1</span>], [<span class="dv">0</span>, <span class="dv">1</span>], <span class="st">"k--"</span>, label<span class="op">=</span><span class="st">"Parfaitement calibré"</span>)</span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"Probabilité prédite"</span>)</span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"Fraction de positifs réels"</span>)</span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="ss">f"Courbe de calibration — validation (</span><span class="sc">{</span>ATB<span class="sc">}</span><span class="ss">)"</span>)</span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>ax.legend()</span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>ax.grid(alpha<span class="op">=</span><span class="fl">0.3</span>)</span>
+<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="all_antibiotic_files/figure-html/cell-19-output-1.png" class="img-fluid figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="évaluation-sur-le-test" class="level3">
+<h3 class="anchored" data-anchor-id="évaluation-sur-le-test">7.8 Évaluation sur le test</h3>
+<div id="53c4724c" class="cell" data-execution_count="40">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>res_test <span class="op">=</span> evaluate(</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"XGBoost — test"</span>, model_xgb, X_test, y_test, threshold<span class="op">=</span>best_thr</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+=== XGBoost — test (seuil = 0.173) ===
+Accuracy          : 0.927
+Balanced accuracy : 0.758
+Precision         : 0.722
+Recall            : 0.542
+F1                : 0.619
+ROC-AUC           : 0.831
+PR-AUC            : 0.665
+           Prédit 0  Prédit 1
+Observé 0       569        15
+Observé 1        33        39</code></pre>
+</div>
+</div>
+</section>
+<section id="interprétabilité" class="level3">
+<h3 class="anchored" data-anchor-id="interprétabilité">7.9 Interprétabilité</h3>
+<section id="shap" class="level4">
+<h4 class="anchored" data-anchor-id="shap">7.9.1 SHAP</h4>
+<p>SHAP est calculé sur le jeu de <strong>test</strong>. Les valeurs sont des contributions en log-odds (marge du modèle), pas directement des probabilités.</p>
+<div id="edb31314" class="cell" data-execution_count="41">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb34"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a>explainer_xgb <span class="op">=</span> shap.TreeExplainer(model_xgb)</span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>shap_value_xgb <span class="op">=</span> explainer_xgb(X_test)</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Dimensions     :"</span>, shap_value_xgb.values.shape)</span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Valeur de base :"</span>, shap_value_xgb.base_values[<span class="dv">0</span>])</span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a><span class="co"># vue d'ensemble</span></span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a>shap.plots.beeswarm(shap_value_xgb, max_display<span class="op">=</span><span class="dv">10</span>)</span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-10"><a href="#cb34-10" aria-hidden="true" tabindex="-1"></a><span class="co"># classement simple par importance moyenne</span></span>
+<span id="cb34-11"><a href="#cb34-11" aria-hidden="true" tabindex="-1"></a>shap.plots.bar(shap_value_xgb, max_display<span class="op">=</span><span class="dv">10</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Dimensions     : (656, 34744)
+Valeur de base : -2.1856904</code></pre>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="all_antibiotic_files/figure-html/cell-21-output-2.png" class="img-fluid figure-img"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="all_antibiotic_files/figure-html/cell-21-output-3.png" class="img-fluid figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="analyse-derreurs" class="level4">
+<h4 class="anchored" data-anchor-id="analyse-derreurs">7.9.2 Analyse d’erreurs</h4>
+<p>On isole un faux positif et un faux négatif et on regarde, avec SHAP, quelles variables ont poussé la prédiction.</p>
+<div id="d1bdaf98" class="cell" data-execution_count="42">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb36"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>proba_test <span class="op">=</span> model_xgb.predict_proba(X_test)[:, <span class="dv">1</span>]</span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>pred_test <span class="op">=</span> proba_test <span class="op">&gt;=</span> best_thr</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>y_true <span class="op">=</span> y_test.values</span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>i_fp <span class="op">=</span> np.where((y_true <span class="op">==</span> <span class="dv">0</span>) <span class="op">&amp;</span> pred_test)[<span class="dv">0</span>]</span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>i_fn <span class="op">=</span> np.where((y_true <span class="op">==</span> <span class="dv">1</span>) <span class="op">&amp;</span> <span class="op">~</span>pred_test)[<span class="dv">0</span>]</span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Nombre de Faux Positifs : </span><span class="sc">{</span><span class="bu">len</span>(i_fp)<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb36-9"><a href="#cb36-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Nombre de Faux Négatifs : </span><span class="sc">{</span><span class="bu">len</span>(i_fn)<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb36-10"><a href="#cb36-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-11"><a href="#cb36-11" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">len</span>(i_fp) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
+<span id="cb36-12"><a href="#cb36-12" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">=== Faux Positif (prédit résistant, réellement sensible) ==="</span>)</span>
+<span id="cb36-13"><a href="#cb36-13" aria-hidden="true" tabindex="-1"></a>    shap.plots.waterfall(shap_value_xgb[i_fp[<span class="dv">0</span>]], max_display<span class="op">=</span><span class="dv">4</span>)</span>
+<span id="cb36-14"><a href="#cb36-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-15"><a href="#cb36-15" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">len</span>(i_fn) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
+<span id="cb36-16"><a href="#cb36-16" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">=== Faux Négatif (prédit sensible, réellement résistant) ==="</span>)</span>
+<span id="cb36-17"><a href="#cb36-17" aria-hidden="true" tabindex="-1"></a>    shap.plots.waterfall(shap_value_xgb[i_fn[<span class="dv">0</span>]], max_display<span class="op">=</span><span class="dv">4</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Nombre de Faux Positifs : 15
+Nombre de Faux Négatifs : 33
+
+=== Faux Positif (prédit résistant, réellement sensible) ===</code></pre>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="all_antibiotic_files/figure-html/cell-22-output-2.png" class="img-fluid figure-img"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+=== Faux Négatif (prédit sensible, réellement résistant) ===</code></pre>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="all_antibiotic_files/figure-html/cell-22-output-4.png" class="img-fluid figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+</section>
+<section id="deep-learning-mlp-pytorch" class="level3">
+<h3 class="anchored" data-anchor-id="deep-learning-mlp-pytorch">7.10 Deep learning : MLP PyTorch</h3>
+<p>Deux variantes, comme dans <code>exploration_benjamin.ipynb</code> :</p>
+<ol type="1">
+<li><strong>sans sélection de variables</strong> : le MLP voit toutes les features (coûteux en mémoire) ;</li>
+<li><strong>avec sélection de variables</strong> : top 50 features par SHAP, bien plus rapide et souvent meilleur.</li>
+</ol>
+<section id="tenseurs-et-dataloader" class="level4">
+<h4 class="anchored" data-anchor-id="tenseurs-et-dataloader">7.10.1 Tenseurs et DataLoader</h4>
+<div id="f7914c11" class="cell" data-execution_count="43">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb39"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a>Xtrain <span class="op">=</span> torch.tensor(X_train.to_numpy(dtype<span class="op">=</span>np.float32))</span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>Xval <span class="op">=</span> torch.tensor(X_val.to_numpy(dtype<span class="op">=</span>np.float32))</span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a>Xtest <span class="op">=</span> torch.tensor(X_test.to_numpy(dtype<span class="op">=</span>np.float32))</span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a>ytrain <span class="op">=</span> torch.tensor(y_train.to_numpy(dtype<span class="op">=</span>np.float32)).view(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>)</span>
+<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a>y_val_tensor <span class="op">=</span> torch.tensor(y_val.to_numpy(dtype<span class="op">=</span>np.float32))</span>
+<span id="cb39-7"><a href="#cb39-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-8"><a href="#cb39-8" aria-hidden="true" tabindex="-1"></a>train_loader <span class="op">=</span> DataLoader(</span>
+<span id="cb39-9"><a href="#cb39-9" aria-hidden="true" tabindex="-1"></a>    TensorDataset(Xtrain, ytrain),</span>
+<span id="cb39-10"><a href="#cb39-10" aria-hidden="true" tabindex="-1"></a>    batch_size<span class="op">=</span><span class="dv">64</span>,</span>
+<span id="cb39-11"><a href="#cb39-11" aria-hidden="true" tabindex="-1"></a>    shuffle<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb39-12"><a href="#cb39-12" aria-hidden="true" tabindex="-1"></a>    num_workers<span class="op">=</span><span class="dv">0</span>,</span>
+<span id="cb39-13"><a href="#cb39-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb39-14"><a href="#cb39-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-15"><a href="#cb39-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(Xtrain.shape, ytrain.shape)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>torch.Size([2676, 34744]) torch.Size([2676, 1])</code></pre>
+</div>
+</div>
+</section>
+<section id="configuration-du-modèle" class="level4">
+<h4 class="anchored" data-anchor-id="configuration-du-modèle">7.10.2 Configuration du modèle</h4>
+<div id="bc881ec0" class="cell" data-execution_count="44">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb41"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="co"># pondération pour le déséquilibre des classes</span></span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>nb_pos <span class="op">=</span> (y_train <span class="op">==</span> <span class="dv">1</span>).<span class="bu">sum</span>()</span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>nb_neg <span class="op">=</span> (y_train <span class="op">==</span> <span class="dv">0</span>).<span class="bu">sum</span>()</span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>pos_weight <span class="op">=</span> torch.tensor([nb_neg <span class="op">/</span> nb_pos], dtype<span class="op">=</span>torch.float32)</span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"pos_weight = </span><span class="sc">{</span>pos_weight<span class="sc">.</span>item()<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a><span class="co"># architecture à deux couches cachées</span></span>
+<span id="cb41-8"><a href="#cb41-8" aria-hidden="true" tabindex="-1"></a>mlp <span class="op">=</span> nn.Sequential(</span>
+<span id="cb41-9"><a href="#cb41-9" aria-hidden="true" tabindex="-1"></a>    nn.Linear(Xtrain.shape[<span class="dv">1</span>], <span class="dv">512</span>),</span>
+<span id="cb41-10"><a href="#cb41-10" aria-hidden="true" tabindex="-1"></a>    nn.BatchNorm1d(<span class="dv">512</span>),</span>
+<span id="cb41-11"><a href="#cb41-11" aria-hidden="true" tabindex="-1"></a>    nn.ReLU(),</span>
+<span id="cb41-12"><a href="#cb41-12" aria-hidden="true" tabindex="-1"></a>    nn.Dropout(<span class="fl">0.3</span>),</span>
+<span id="cb41-13"><a href="#cb41-13" aria-hidden="true" tabindex="-1"></a>    nn.Linear(<span class="dv">512</span>, <span class="dv">128</span>),</span>
+<span id="cb41-14"><a href="#cb41-14" aria-hidden="true" tabindex="-1"></a>    nn.BatchNorm1d(<span class="dv">128</span>),</span>
+<span id="cb41-15"><a href="#cb41-15" aria-hidden="true" tabindex="-1"></a>    nn.ReLU(),</span>
+<span id="cb41-16"><a href="#cb41-16" aria-hidden="true" tabindex="-1"></a>    nn.Dropout(<span class="fl">0.2</span>),</span>
+<span id="cb41-17"><a href="#cb41-17" aria-hidden="true" tabindex="-1"></a>    nn.Linear(<span class="dv">128</span>, <span class="dv">32</span>),</span>
+<span id="cb41-18"><a href="#cb41-18" aria-hidden="true" tabindex="-1"></a>    nn.ReLU(),</span>
+<span id="cb41-19"><a href="#cb41-19" aria-hidden="true" tabindex="-1"></a>    nn.Linear(<span class="dv">32</span>, <span class="dv">1</span>),</span>
+<span id="cb41-20"><a href="#cb41-20" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb41-21"><a href="#cb41-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-22"><a href="#cb41-22" aria-hidden="true" tabindex="-1"></a>criterion_eval <span class="op">=</span> nn.BCEWithLogitsLoss(pos_weight<span class="op">=</span>pos_weight)</span>
+<span id="cb41-23"><a href="#cb41-23" aria-hidden="true" tabindex="-1"></a>optimizer <span class="op">=</span> torch.optim.AdamW(mlp.parameters(), lr<span class="op">=</span><span class="fl">0.001</span>, weight_decay<span class="op">=</span><span class="fl">1e-4</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>pos_weight = 6.005</code></pre>
+</div>
+</div>
+</section>
+<section id="entraînement-early-stopping-sur-la-pr-auc-de-validation" class="level4">
+<h4 class="anchored" data-anchor-id="entraînement-early-stopping-sur-la-pr-auc-de-validation">7.10.3 Entraînement (early stopping sur la PR-AUC de validation)</h4>
+<p>La boucle d’entraînement est factorisée dans <code>train_mlp</code> : elle sert aux deux variantes du MLP.</p>
+<div id="45a4483f" class="cell" data-execution_count="45">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb43"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> train_mlp(mlp, loader, criterion, optimizer, Xtr, Xva, ytr, yva,</span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a>              max_epochs: <span class="bu">int</span> <span class="op">=</span> <span class="dv">200</span>, patience_max: <span class="bu">int</span> <span class="op">=</span> <span class="dv">15</span>, verbose: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>):</span>
+<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a>    <span class="co">'''Entraîne un MLP avec early stopping sur la PR-AUC de validation.'''</span></span>
+<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a>    ytr_t <span class="op">=</span> torch.as_tensor(np.asarray(ytr), dtype<span class="op">=</span>torch.float32)</span>
+<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a>    yva_t <span class="op">=</span> torch.as_tensor(np.asarray(yva), dtype<span class="op">=</span>torch.float32)</span>
+<span id="cb43-6"><a href="#cb43-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-7"><a href="#cb43-7" aria-hidden="true" tabindex="-1"></a>    history <span class="op">=</span> {</span>
+<span id="cb43-8"><a href="#cb43-8" aria-hidden="true" tabindex="-1"></a>        <span class="st">"train_loss"</span>: [],</span>
+<span id="cb43-9"><a href="#cb43-9" aria-hidden="true" tabindex="-1"></a>        <span class="st">"val_loss"</span>: [],</span>
+<span id="cb43-10"><a href="#cb43-10" aria-hidden="true" tabindex="-1"></a>        <span class="st">"train_pr_auc"</span>: [],</span>
+<span id="cb43-11"><a href="#cb43-11" aria-hidden="true" tabindex="-1"></a>        <span class="st">"val_pr_auc"</span>: [],</span>
+<span id="cb43-12"><a href="#cb43-12" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb43-13"><a href="#cb43-13" aria-hidden="true" tabindex="-1"></a>    best_pr, patience, best_state, best_epoch <span class="op">=</span> <span class="op">-</span><span class="fl">1.0</span>, patience_max, <span class="va">None</span>, <span class="dv">0</span></span>
+<span id="cb43-14"><a href="#cb43-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-15"><a href="#cb43-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> epoch <span class="kw">in</span> <span class="bu">range</span>(max_epochs):</span>
+<span id="cb43-16"><a href="#cb43-16" aria-hidden="true" tabindex="-1"></a>        <span class="co"># entraînement</span></span>
+<span id="cb43-17"><a href="#cb43-17" aria-hidden="true" tabindex="-1"></a>        mlp.train()</span>
+<span id="cb43-18"><a href="#cb43-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> xb, yb <span class="kw">in</span> loader:</span>
+<span id="cb43-19"><a href="#cb43-19" aria-hidden="true" tabindex="-1"></a>            optimizer.zero_grad()</span>
+<span id="cb43-20"><a href="#cb43-20" aria-hidden="true" tabindex="-1"></a>            loss <span class="op">=</span> criterion(mlp(xb), yb)</span>
+<span id="cb43-21"><a href="#cb43-21" aria-hidden="true" tabindex="-1"></a>            loss.backward()</span>
+<span id="cb43-22"><a href="#cb43-22" aria-hidden="true" tabindex="-1"></a>            optimizer.step()</span>
+<span id="cb43-23"><a href="#cb43-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-24"><a href="#cb43-24" aria-hidden="true" tabindex="-1"></a>        <span class="co"># validation</span></span>
+<span id="cb43-25"><a href="#cb43-25" aria-hidden="true" tabindex="-1"></a>        mlp.<span class="bu">eval</span>()</span>
+<span id="cb43-26"><a href="#cb43-26" aria-hidden="true" tabindex="-1"></a>        <span class="cf">with</span> torch.no_grad():</span>
+<span id="cb43-27"><a href="#cb43-27" aria-hidden="true" tabindex="-1"></a>            logits_train <span class="op">=</span> mlp(Xtr).squeeze(<span class="dv">1</span>)</span>
+<span id="cb43-28"><a href="#cb43-28" aria-hidden="true" tabindex="-1"></a>            logits_val <span class="op">=</span> mlp(Xva).squeeze(<span class="dv">1</span>)</span>
+<span id="cb43-29"><a href="#cb43-29" aria-hidden="true" tabindex="-1"></a>            proba_train <span class="op">=</span> torch.sigmoid(logits_train).cpu().numpy()</span>
+<span id="cb43-30"><a href="#cb43-30" aria-hidden="true" tabindex="-1"></a>            proba_val <span class="op">=</span> torch.sigmoid(logits_val).cpu().numpy()</span>
+<span id="cb43-31"><a href="#cb43-31" aria-hidden="true" tabindex="-1"></a>            loss_train <span class="op">=</span> criterion(logits_train, ytr_t).item()</span>
+<span id="cb43-32"><a href="#cb43-32" aria-hidden="true" tabindex="-1"></a>            loss_val <span class="op">=</span> criterion(logits_val, yva_t).item()</span>
+<span id="cb43-33"><a href="#cb43-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-34"><a href="#cb43-34" aria-hidden="true" tabindex="-1"></a>        history[<span class="st">"train_loss"</span>].append(loss_train)</span>
+<span id="cb43-35"><a href="#cb43-35" aria-hidden="true" tabindex="-1"></a>        history[<span class="st">"val_loss"</span>].append(loss_val)</span>
+<span id="cb43-36"><a href="#cb43-36" aria-hidden="true" tabindex="-1"></a>        history[<span class="st">"train_pr_auc"</span>].append(average_precision_score(ytr, proba_train))</span>
+<span id="cb43-37"><a href="#cb43-37" aria-hidden="true" tabindex="-1"></a>        history[<span class="st">"val_pr_auc"</span>].append(average_precision_score(yva, proba_val))</span>
+<span id="cb43-38"><a href="#cb43-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-39"><a href="#cb43-39" aria-hidden="true" tabindex="-1"></a>        <span class="co"># early stopping sur la PR-AUC de validation</span></span>
+<span id="cb43-40"><a href="#cb43-40" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> history[<span class="st">"val_pr_auc"</span>][<span class="op">-</span><span class="dv">1</span>] <span class="op">&gt;</span> best_pr:</span>
+<span id="cb43-41"><a href="#cb43-41" aria-hidden="true" tabindex="-1"></a>            best_pr <span class="op">=</span> history[<span class="st">"val_pr_auc"</span>][<span class="op">-</span><span class="dv">1</span>]</span>
+<span id="cb43-42"><a href="#cb43-42" aria-hidden="true" tabindex="-1"></a>            best_epoch <span class="op">=</span> epoch</span>
+<span id="cb43-43"><a href="#cb43-43" aria-hidden="true" tabindex="-1"></a>            patience <span class="op">=</span> patience_max</span>
+<span id="cb43-44"><a href="#cb43-44" aria-hidden="true" tabindex="-1"></a>            best_state <span class="op">=</span> copy.deepcopy(mlp.state_dict())</span>
+<span id="cb43-45"><a href="#cb43-45" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb43-46"><a href="#cb43-46" aria-hidden="true" tabindex="-1"></a>            patience <span class="op">-=</span> <span class="dv">1</span></span>
+<span id="cb43-47"><a href="#cb43-47" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> patience <span class="op">==</span> <span class="dv">0</span>:</span>
+<span id="cb43-48"><a href="#cb43-48" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> verbose:</span>
+<span id="cb43-49"><a href="#cb43-49" aria-hidden="true" tabindex="-1"></a>                    <span class="bu">print</span>(<span class="ss">f"Early stopping epoch </span><span class="sc">{</span>epoch<span class="sc">}</span><span class="ss"> — best val PR-AUC </span><span class="sc">{</span>best_pr<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb43-50"><a href="#cb43-50" aria-hidden="true" tabindex="-1"></a>                <span class="cf">break</span></span>
+<span id="cb43-51"><a href="#cb43-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-52"><a href="#cb43-52" aria-hidden="true" tabindex="-1"></a>    mlp.load_state_dict(best_state)</span>
+<span id="cb43-53"><a href="#cb43-53" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> verbose:</span>
+<span id="cb43-54"><a href="#cb43-54" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"meilleur epoch = </span><span class="sc">{</span>best_epoch<span class="sc">}</span><span class="ss"> | best val PR-AUC = </span><span class="sc">{</span>best_pr<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb43-55"><a href="#cb43-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-56"><a href="#cb43-56" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> history, best_epoch</span>
+<span id="cb43-57"><a href="#cb43-57" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-58"><a href="#cb43-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-59"><a href="#cb43-59" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> plot_history(history, best_epoch, title: <span class="bu">str</span> <span class="op">=</span> <span class="st">""</span>):</span>
+<span id="cb43-60"><a href="#cb43-60" aria-hidden="true" tabindex="-1"></a>    <span class="co">'''Loss, PR-AUC et écart de généralisation au fil des epochs.'''</span></span>
+<span id="cb43-61"><a href="#cb43-61" aria-hidden="true" tabindex="-1"></a>    fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">16</span>, <span class="dv">4</span>))</span>
+<span id="cb43-62"><a href="#cb43-62" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-63"><a href="#cb43-63" aria-hidden="true" tabindex="-1"></a>    axes[<span class="dv">0</span>].plot(history[<span class="st">"train_loss"</span>], label<span class="op">=</span><span class="st">"train"</span>)</span>
+<span id="cb43-64"><a href="#cb43-64" aria-hidden="true" tabindex="-1"></a>    axes[<span class="dv">0</span>].plot(history[<span class="st">"val_loss"</span>], label<span class="op">=</span><span class="st">"validation"</span>)</span>
+<span id="cb43-65"><a href="#cb43-65" aria-hidden="true" tabindex="-1"></a>    axes[<span class="dv">0</span>].axvline(best_epoch, ls<span class="op">=</span><span class="st">"--"</span>, color<span class="op">=</span><span class="st">"grey"</span>, label<span class="op">=</span><span class="st">"meilleur epoch"</span>)</span>
+<span id="cb43-66"><a href="#cb43-66" aria-hidden="true" tabindex="-1"></a>    axes[<span class="dv">0</span>].set_title(<span class="ss">f"</span><span class="sc">{</span>title<span class="sc">}</span><span class="ss"> — BCE"</span>)</span>
+<span id="cb43-67"><a href="#cb43-67" aria-hidden="true" tabindex="-1"></a>    axes[<span class="dv">0</span>].set_xlabel(<span class="st">"epoch"</span>)</span>
+<span id="cb43-68"><a href="#cb43-68" aria-hidden="true" tabindex="-1"></a>    axes[<span class="dv">0</span>].legend()</span>
+<span id="cb43-69"><a href="#cb43-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-70"><a href="#cb43-70" aria-hidden="true" tabindex="-1"></a>    axes[<span class="dv">1</span>].plot(history[<span class="st">"train_pr_auc"</span>], label<span class="op">=</span><span class="st">"train"</span>)</span>
+<span id="cb43-71"><a href="#cb43-71" aria-hidden="true" tabindex="-1"></a>    axes[<span class="dv">1</span>].plot(history[<span class="st">"val_pr_auc"</span>], label<span class="op">=</span><span class="st">"validation"</span>)</span>
+<span id="cb43-72"><a href="#cb43-72" aria-hidden="true" tabindex="-1"></a>    axes[<span class="dv">1</span>].axvline(best_epoch, ls<span class="op">=</span><span class="st">"--"</span>, color<span class="op">=</span><span class="st">"grey"</span>)</span>
+<span id="cb43-73"><a href="#cb43-73" aria-hidden="true" tabindex="-1"></a>    axes[<span class="dv">1</span>].set_title(<span class="st">"PR-AUC"</span>)</span>
+<span id="cb43-74"><a href="#cb43-74" aria-hidden="true" tabindex="-1"></a>    axes[<span class="dv">1</span>].set_xlabel(<span class="st">"epoch"</span>)</span>
+<span id="cb43-75"><a href="#cb43-75" aria-hidden="true" tabindex="-1"></a>    axes[<span class="dv">1</span>].legend()</span>
+<span id="cb43-76"><a href="#cb43-76" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-77"><a href="#cb43-77" aria-hidden="true" tabindex="-1"></a>    gap <span class="op">=</span> np.array(history[<span class="st">"val_loss"</span>]) <span class="op">-</span> np.array(history[<span class="st">"train_loss"</span>])</span>
+<span id="cb43-78"><a href="#cb43-78" aria-hidden="true" tabindex="-1"></a>    axes[<span class="dv">2</span>].plot(gap, color<span class="op">=</span><span class="st">"darkred"</span>)</span>
+<span id="cb43-79"><a href="#cb43-79" aria-hidden="true" tabindex="-1"></a>    axes[<span class="dv">2</span>].set_title(<span class="st">"Val loss − Train loss"</span>)</span>
+<span id="cb43-80"><a href="#cb43-80" aria-hidden="true" tabindex="-1"></a>    axes[<span class="dv">2</span>].set_xlabel(<span class="st">"epoch"</span>)</span>
+<span id="cb43-81"><a href="#cb43-81" aria-hidden="true" tabindex="-1"></a>    axes[<span class="dv">2</span>].axhline(<span class="dv">0</span>, ls<span class="op">=</span><span class="st">":"</span>, color<span class="op">=</span><span class="st">"black"</span>)</span>
+<span id="cb43-82"><a href="#cb43-82" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-83"><a href="#cb43-83" aria-hidden="true" tabindex="-1"></a>    plt.tight_layout()</span>
+<span id="cb43-84"><a href="#cb43-84" aria-hidden="true" tabindex="-1"></a>    plt.show()</span>
+<span id="cb43-85"><a href="#cb43-85" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-86"><a href="#cb43-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-87"><a href="#cb43-87" aria-hidden="true" tabindex="-1"></a>history_mlp, best_epoch_mlp <span class="op">=</span> train_mlp(</span>
+<span id="cb43-88"><a href="#cb43-88" aria-hidden="true" tabindex="-1"></a>    mlp, train_loader, criterion_eval, optimizer,</span>
+<span id="cb43-89"><a href="#cb43-89" aria-hidden="true" tabindex="-1"></a>    Xtrain, Xval, y_train, y_val,</span>
+<span id="cb43-90"><a href="#cb43-90" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb43-91"><a href="#cb43-91" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-92"><a href="#cb43-92" aria-hidden="true" tabindex="-1"></a>plot_history(history_mlp, best_epoch_mlp, <span class="st">"MLP complet"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Early stopping epoch 16 — best val PR-AUC 0.675
+meilleur epoch = 1 | best val PR-AUC = 0.675</code></pre>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="all_antibiotic_files/figure-html/cell-25-output-2.png" class="img-fluid figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="évaluation-du-mlp-complet" class="level4">
+<h4 class="anchored" data-anchor-id="évaluation-du-mlp-complet">7.10.4 Évaluation du MLP complet</h4>
+<div id="c549d695" class="cell" data-execution_count="46">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb45"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TorchProba:</span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">'''Petit adaptateur pour utiliser un réseau PyTorch avec `evaluate`.'''</span></span>
+<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-4"><a href="#cb45-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, net):</span>
+<span id="cb45-5"><a href="#cb45-5" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.net <span class="op">=</span> net</span>
+<span id="cb45-6"><a href="#cb45-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-7"><a href="#cb45-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> predict_proba(<span class="va">self</span>, X):</span>
+<span id="cb45-8"><a href="#cb45-8" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.net.<span class="bu">eval</span>()</span>
+<span id="cb45-9"><a href="#cb45-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">with</span> torch.no_grad():</span>
+<span id="cb45-10"><a href="#cb45-10" aria-hidden="true" tabindex="-1"></a>            xb <span class="op">=</span> torch.as_tensor(np.asarray(X, dtype<span class="op">=</span>np.float32))</span>
+<span id="cb45-11"><a href="#cb45-11" aria-hidden="true" tabindex="-1"></a>            p <span class="op">=</span> torch.sigmoid(<span class="va">self</span>.net(xb)).cpu().numpy().ravel()</span>
+<span id="cb45-12"><a href="#cb45-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> np.column_stack([<span class="dv">1</span> <span class="op">-</span> p, p])</span>
+<span id="cb45-13"><a href="#cb45-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-14"><a href="#cb45-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-15"><a href="#cb45-15" aria-hidden="true" tabindex="-1"></a>mlp_eval <span class="op">=</span> TorchProba(mlp)</span>
+<span id="cb45-16"><a href="#cb45-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-17"><a href="#cb45-17" aria-hidden="true" tabindex="-1"></a><span class="co"># validation</span></span>
+<span id="cb45-18"><a href="#cb45-18" aria-hidden="true" tabindex="-1"></a>res_val_mlp <span class="op">=</span> evaluate(<span class="st">"MLP — validation"</span>, mlp_eval, X_val, y_val)</span>
+<span id="cb45-19"><a href="#cb45-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-20"><a href="#cb45-20" aria-hidden="true" tabindex="-1"></a><span class="co"># seuil choisi sur la validation</span></span>
+<span id="cb45-21"><a href="#cb45-21" aria-hidden="true" tabindex="-1"></a>best_thr_mlp <span class="op">=</span> best_f1_threshold(mlp_eval, X_val, y_val)</span>
+<span id="cb45-22"><a href="#cb45-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"seuil optimal (F1 validation) : </span><span class="sc">{</span>best_thr_mlp<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb45-23"><a href="#cb45-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-24"><a href="#cb45-24" aria-hidden="true" tabindex="-1"></a><span class="co"># test</span></span>
+<span id="cb45-25"><a href="#cb45-25" aria-hidden="true" tabindex="-1"></a>res_test_mlp <span class="op">=</span> evaluate(</span>
+<span id="cb45-26"><a href="#cb45-26" aria-hidden="true" tabindex="-1"></a>    <span class="st">"MLP — test"</span>, mlp_eval, X_test, y_test, threshold<span class="op">=</span>best_thr_mlp</span>
+<span id="cb45-27"><a href="#cb45-27" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+=== MLP — validation (seuil = 0.500) ===
+Accuracy          : 0.529
+Balanced accuracy : 0.680
+Precision         : 0.182
+Recall            : 0.876
+F1                : 0.301
+ROC-AUC           : 0.842
+PR-AUC            : 0.675
+           Prédit 0  Prédit 1
+Observé 0       329       351
+Observé 1        11        78
+seuil optimal (F1 validation) : 0.937
+
+=== MLP — test (seuil = 0.937) ===
+Accuracy          : 0.933
+Balanced accuracy : 0.719
+Precision         : 0.889
+Recall            : 0.444
+F1                : 0.593
+ROC-AUC           : 0.825
+PR-AUC            : 0.623
+           Prédit 0  Prédit 1
+Observé 0       580         4
+Observé 1        40        32</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="deep-learning-avec-sélection-de-variables" class="level3">
+<h3 class="anchored" data-anchor-id="deep-learning-avec-sélection-de-variables">7.11 Deep learning avec sélection de variables</h3>
+<section id="top-50-features-par-shap" class="level4">
+<h4 class="anchored" data-anchor-id="top-50-features-par-shap">7.11.1 Top 50 features par SHAP</h4>
+<div id="fced58fc" class="cell" data-execution_count="47">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb47"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a>explainer_train <span class="op">=</span> shap.TreeExplainer(model_xgb)</span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a>shap_value_train <span class="op">=</span> explainer_train(</span>
+<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a>    X_train.sample(<span class="bu">min</span>(<span class="dv">1000</span>, <span class="bu">len</span>(X_train)), random_state<span class="op">=</span>SEED)</span>
+<span id="cb47-4"><a href="#cb47-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb47-5"><a href="#cb47-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb47-6"><a href="#cb47-6" aria-hidden="true" tabindex="-1"></a>mean_abs_shap <span class="op">=</span> np.<span class="bu">abs</span>(shap_value_train.values).mean(axis<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb47-7"><a href="#cb47-7" aria-hidden="true" tabindex="-1"></a>TOP_N <span class="op">=</span> <span class="dv">50</span></span>
+<span id="cb47-8"><a href="#cb47-8" aria-hidden="true" tabindex="-1"></a>top_features <span class="op">=</span> X_train.columns[np.argsort(mean_abs_shap)[<span class="op">-</span>TOP_N:]]</span>
+<span id="cb47-9"><a href="#cb47-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb47-10"><a href="#cb47-10" aria-hidden="true" tabindex="-1"></a>X_train_top <span class="op">=</span> torch.tensor(X_train[top_features].to_numpy(dtype<span class="op">=</span>np.float32))</span>
+<span id="cb47-11"><a href="#cb47-11" aria-hidden="true" tabindex="-1"></a>X_val_top <span class="op">=</span> torch.tensor(X_val[top_features].to_numpy(dtype<span class="op">=</span>np.float32))</span>
+<span id="cb47-12"><a href="#cb47-12" aria-hidden="true" tabindex="-1"></a>X_test_top <span class="op">=</span> torch.tensor(X_test[top_features].to_numpy(dtype<span class="op">=</span>np.float32))</span>
+<span id="cb47-13"><a href="#cb47-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb47-14"><a href="#cb47-14" aria-hidden="true" tabindex="-1"></a>train_loader_top <span class="op">=</span> DataLoader(</span>
+<span id="cb47-15"><a href="#cb47-15" aria-hidden="true" tabindex="-1"></a>    TensorDataset(X_train_top, ytrain),</span>
+<span id="cb47-16"><a href="#cb47-16" aria-hidden="true" tabindex="-1"></a>    batch_size<span class="op">=</span><span class="dv">64</span>,</span>
+<span id="cb47-17"><a href="#cb47-17" aria-hidden="true" tabindex="-1"></a>    shuffle<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb47-18"><a href="#cb47-18" aria-hidden="true" tabindex="-1"></a>    num_workers<span class="op">=</span><span class="dv">0</span>,</span>
+<span id="cb47-19"><a href="#cb47-19" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb47-20"><a href="#cb47-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb47-21"><a href="#cb47-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(X_train_top.shape, ytrain.shape)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>torch.Size([2676, 50]) torch.Size([2676, 1])</code></pre>
+</div>
+</div>
+</section>
+<section id="configuration-et-entraînement" class="level4">
+<h4 class="anchored" data-anchor-id="configuration-et-entraînement">7.11.2 Configuration et entraînement</h4>
+<div id="97489eff" class="cell" data-execution_count="48">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb49"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a>mlp_top <span class="op">=</span> nn.Sequential(</span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a>    nn.Linear(<span class="bu">len</span>(top_features), <span class="dv">64</span>),</span>
+<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a>    nn.ReLU(),</span>
+<span id="cb49-4"><a href="#cb49-4" aria-hidden="true" tabindex="-1"></a>    nn.Dropout(<span class="fl">0.5</span>),</span>
+<span id="cb49-5"><a href="#cb49-5" aria-hidden="true" tabindex="-1"></a>    nn.Linear(<span class="dv">64</span>, <span class="dv">16</span>),</span>
+<span id="cb49-6"><a href="#cb49-6" aria-hidden="true" tabindex="-1"></a>    nn.ReLU(),</span>
+<span id="cb49-7"><a href="#cb49-7" aria-hidden="true" tabindex="-1"></a>    nn.Linear(<span class="dv">16</span>, <span class="dv">1</span>),</span>
+<span id="cb49-8"><a href="#cb49-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb49-9"><a href="#cb49-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb49-10"><a href="#cb49-10" aria-hidden="true" tabindex="-1"></a>criterion_top <span class="op">=</span> nn.BCEWithLogitsLoss(pos_weight<span class="op">=</span>pos_weight)</span>
+<span id="cb49-11"><a href="#cb49-11" aria-hidden="true" tabindex="-1"></a>optimizer_top <span class="op">=</span> torch.optim.AdamW(mlp_top.parameters(), lr<span class="op">=</span><span class="fl">0.001</span>, weight_decay<span class="op">=</span><span class="fl">1e-4</span>)</span>
+<span id="cb49-12"><a href="#cb49-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb49-13"><a href="#cb49-13" aria-hidden="true" tabindex="-1"></a>history_top, best_epoch_top <span class="op">=</span> train_mlp(</span>
+<span id="cb49-14"><a href="#cb49-14" aria-hidden="true" tabindex="-1"></a>    mlp_top, train_loader_top, criterion_top, optimizer_top,</span>
+<span id="cb49-15"><a href="#cb49-15" aria-hidden="true" tabindex="-1"></a>    X_train_top, X_val_top, y_train, y_val,</span>
+<span id="cb49-16"><a href="#cb49-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb49-17"><a href="#cb49-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb49-18"><a href="#cb49-18" aria-hidden="true" tabindex="-1"></a>plot_history(history_top, best_epoch_top, <span class="st">"MLP top 50"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Early stopping epoch 16 — best val PR-AUC 0.658
+meilleur epoch = 1 | best val PR-AUC = 0.658</code></pre>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="all_antibiotic_files/figure-html/cell-28-output-2.png" class="img-fluid figure-img"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="évaluation-du-mlp-filtré" class="level4">
+<h4 class="anchored" data-anchor-id="évaluation-du-mlp-filtré">7.11.3 Évaluation du MLP filtré</h4>
+<div id="3ea70537" class="cell" data-execution_count="49">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb51"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a>mlp_top_eval <span class="op">=</span> TorchProba(mlp_top)</span>
+<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb51-3"><a href="#cb51-3" aria-hidden="true" tabindex="-1"></a><span class="co"># validation</span></span>
+<span id="cb51-4"><a href="#cb51-4" aria-hidden="true" tabindex="-1"></a>res_val_top <span class="op">=</span> evaluate(<span class="st">"MLP top-50 — validation"</span>, mlp_top_eval, X_val_top, y_val)</span>
+<span id="cb51-5"><a href="#cb51-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb51-6"><a href="#cb51-6" aria-hidden="true" tabindex="-1"></a><span class="co"># seuil choisi sur la validation</span></span>
+<span id="cb51-7"><a href="#cb51-7" aria-hidden="true" tabindex="-1"></a>best_thr_top <span class="op">=</span> best_f1_threshold(mlp_top_eval, X_val_top, y_val)</span>
+<span id="cb51-8"><a href="#cb51-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"seuil optimal (F1 validation) : </span><span class="sc">{</span>best_thr_top<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb51-9"><a href="#cb51-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb51-10"><a href="#cb51-10" aria-hidden="true" tabindex="-1"></a><span class="co"># test</span></span>
+<span id="cb51-11"><a href="#cb51-11" aria-hidden="true" tabindex="-1"></a>res_test_top <span class="op">=</span> evaluate(</span>
+<span id="cb51-12"><a href="#cb51-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">"MLP top-50 — test"</span>, mlp_top_eval, X_test_top, y_test, threshold<span class="op">=</span>best_thr_top</span>
+<span id="cb51-13"><a href="#cb51-13" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+=== MLP top-50 — validation (seuil = 0.500) ===
+Accuracy          : 0.874
+Balanced accuracy : 0.772
+Precision         : 0.467
+Recall            : 0.640
+F1                : 0.540
+ROC-AUC           : 0.837
+PR-AUC            : 0.658
+           Prédit 0  Prédit 1
+Observé 0       615        65
+Observé 1        32        57
+seuil optimal (F1 validation) : 0.667
+
+=== MLP top-50 — test (seuil = 0.667) ===
+Accuracy          : 0.921
+Balanced accuracy : 0.779
+Precision         : 0.652
+Recall            : 0.597
+F1                : 0.623
+ROC-AUC           : 0.849
+PR-AUC            : 0.635
+           Prédit 0  Prédit 1
+Observé 0       561        23
+Observé 1        29        43</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="récapitulatif-pour-lantibiotique-choisi" class="level3">
+<h3 class="anchored" data-anchor-id="récapitulatif-pour-lantibiotique-choisi">7.12 Récapitulatif pour l’antibiotique choisi</h3>
+<p>Tous les modèles sont réévalués sur le test avec leur seuil choisi sur la validation.</p>
+<div id="8a2056f6" class="cell" data-execution_count="50">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb53"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a>recap_rows <span class="op">=</span> []</span>
+<span id="cb53-2"><a href="#cb53-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb53-3"><a href="#cb53-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, model, X_val_m, X_test_m <span class="kw">in</span> [</span>
+<span id="cb53-4"><a href="#cb53-4" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"XGBoost"</span>, model_xgb, X_val, X_test),</span>
+<span id="cb53-5"><a href="#cb53-5" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"LogReg L1"</span>, best_pipe, X_val, X_test),</span>
+<span id="cb53-6"><a href="#cb53-6" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"MLP (toutes features)"</span>, mlp_eval, X_val, X_test),</span>
+<span id="cb53-7"><a href="#cb53-7" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"MLP (top 50)"</span>, mlp_top_eval, X_val_top, X_test_top),</span>
+<span id="cb53-8"><a href="#cb53-8" aria-hidden="true" tabindex="-1"></a>]:</span>
+<span id="cb53-9"><a href="#cb53-9" aria-hidden="true" tabindex="-1"></a>    thr <span class="op">=</span> best_f1_threshold(model, X_val_m, y_val)</span>
+<span id="cb53-10"><a href="#cb53-10" aria-hidden="true" tabindex="-1"></a>    proba <span class="op">=</span> model.predict_proba(X_test_m)[:, <span class="dv">1</span>]</span>
+<span id="cb53-11"><a href="#cb53-11" aria-hidden="true" tabindex="-1"></a>    pred <span class="op">=</span> (proba <span class="op">&gt;=</span> thr).astype(<span class="bu">int</span>)</span>
+<span id="cb53-12"><a href="#cb53-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb53-13"><a href="#cb53-13" aria-hidden="true" tabindex="-1"></a>    recap_rows.append({</span>
+<span id="cb53-14"><a href="#cb53-14" aria-hidden="true" tabindex="-1"></a>        <span class="st">"modèle"</span>: name,</span>
+<span id="cb53-15"><a href="#cb53-15" aria-hidden="true" tabindex="-1"></a>        <span class="st">"seuil"</span>: <span class="bu">round</span>(thr, <span class="dv">3</span>),</span>
+<span id="cb53-16"><a href="#cb53-16" aria-hidden="true" tabindex="-1"></a>        <span class="st">"accuracy"</span>: accuracy_score(y_test, pred),</span>
+<span id="cb53-17"><a href="#cb53-17" aria-hidden="true" tabindex="-1"></a>        <span class="st">"balanced_acc"</span>: balanced_accuracy_score(y_test, pred),</span>
+<span id="cb53-18"><a href="#cb53-18" aria-hidden="true" tabindex="-1"></a>        <span class="st">"precision"</span>: precision_score(y_test, pred, zero_division<span class="op">=</span><span class="dv">0</span>),</span>
+<span id="cb53-19"><a href="#cb53-19" aria-hidden="true" tabindex="-1"></a>        <span class="st">"recall"</span>: recall_score(y_test, pred, zero_division<span class="op">=</span><span class="dv">0</span>),</span>
+<span id="cb53-20"><a href="#cb53-20" aria-hidden="true" tabindex="-1"></a>        <span class="st">"f1"</span>: f1_score(y_test, pred, zero_division<span class="op">=</span><span class="dv">0</span>),</span>
+<span id="cb53-21"><a href="#cb53-21" aria-hidden="true" tabindex="-1"></a>        <span class="st">"roc_auc"</span>: roc_auc_score(y_test, proba),</span>
+<span id="cb53-22"><a href="#cb53-22" aria-hidden="true" tabindex="-1"></a>        <span class="st">"pr_auc"</span>: average_precision_score(y_test, proba),</span>
+<span id="cb53-23"><a href="#cb53-23" aria-hidden="true" tabindex="-1"></a>    })</span>
+<span id="cb53-24"><a href="#cb53-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb53-25"><a href="#cb53-25" aria-hidden="true" tabindex="-1"></a>recap <span class="op">=</span> pd.DataFrame(recap_rows).set_index(<span class="st">"modèle"</span>).<span class="bu">round</span>(<span class="dv">4</span>)</span>
+<span id="cb53-26"><a href="#cb53-26" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Antibiotique : </span><span class="sc">{</span>ATB<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb53-27"><a href="#cb53-27" aria-hidden="true" tabindex="-1"></a>recap</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Antibiotique : cefuroxime</code></pre>
+</div>
+<div class="cell-output cell-output-display" data-execution_count="50">
+<div>
+
+
+<table class="dataframe caption-top table table-sm table-striped small" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">seuil</th>
+<th data-quarto-table-cell-role="th">accuracy</th>
+<th data-quarto-table-cell-role="th">balanced_acc</th>
+<th data-quarto-table-cell-role="th">precision</th>
+<th data-quarto-table-cell-role="th">recall</th>
+<th data-quarto-table-cell-role="th">f1</th>
+<th data-quarto-table-cell-role="th">roc_auc</th>
+<th data-quarto-table-cell-role="th">pr_auc</th>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">modèle</th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">XGBoost</th>
+<td>0.173</td>
+<td>0.9268</td>
+<td>0.7580</td>
+<td>0.7222</td>
+<td>0.5417</td>
+<td>0.6190</td>
+<td>0.8314</td>
+<td>0.6645</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">LogReg L1</th>
+<td>0.330</td>
+<td>0.9405</td>
+<td>0.7718</td>
+<td>0.8511</td>
+<td>0.5556</td>
+<td>0.6723</td>
+<td>0.8362</td>
+<td>0.6538</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">MLP (toutes features)</th>
+<td>0.937</td>
+<td>0.9329</td>
+<td>0.7188</td>
+<td>0.8889</td>
+<td>0.4444</td>
+<td>0.5926</td>
+<td>0.8253</td>
+<td>0.6226</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">MLP (top 50)</th>
+<td>0.667</td>
+<td>0.9207</td>
+<td>0.7789</td>
+<td>0.6515</td>
+<td>0.5972</td>
+<td>0.6232</td>
+<td>0.8489</td>
+<td>0.6346</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

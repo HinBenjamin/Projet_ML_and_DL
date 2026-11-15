@@ -1,0 +1,348 @@
+/*-- scss:defaults --*/
+
+$teal-900: #134e4a;
+$teal-700: #0f766e;
+$teal-600: #0d9488;
+$teal-50: #f0fdfa;
+
+$slate-900: #0f172a;
+$slate-700: #334155;
+$slate-500: #64748b;
+$slate-300: #cbd5e1;
+$slate-200: #e2e8f0;
+$slate-100: #f1f5f9;
+$slate-50: #f8fafc;
+
+$red-700: #b91c1c;
+$green-700: #047857;
+
+$body-bg: #ffffff;
+$body-color: $slate-900;
+$link-color: $teal-700;
+$link-color-hover: $teal-600;
+$text-muted: $slate-500;
+
+$presentation-heading-color: $slate-900;
+$presentation-heading-font-weight: 650;
+$presentation-heading-letter-spacing: -0.02em;
+$presentation-heading-text-transform: none;
+$presentation-heading-line-height: 1.2;
+
+$presentation-h1-font-size: 2.2em;
+$presentation-h2-font-size: 1.45em;
+$presentation-h3-font-size: 1.15em;
+
+$code-block-bg: $slate-50;
+$code-block-border-color: $slate-200;
+$code-color: $teal-900;
+
+/*-- scss:rules --*/
+
+.reveal {
+  font-size: 28px;
+  font-weight: 400;
+}
+
+.reveal .slides section {
+  padding-top: 0.15em;
+}
+
+/* ---------- Title slide ---------- */
+
+.reveal .quarto-title-block {
+  .title {
+    color: $slate-900;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    margin-bottom: 0.45em;
+  }
+
+  .subtitle {
+    color: $slate-700;
+    font-size: 0.95em;
+    font-weight: 450;
+    line-height: 1.35;
+    max-width: 22em;
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 1.4em;
+    padding-bottom: 0.9em;
+    border-bottom: 3px solid $teal-700;
+  }
+
+  .quarto-title-author-name {
+    color: $teal-900;
+    font-weight: 600;
+    font-size: 0.85em;
+  }
+
+  .date {
+    color: $slate-500;
+    font-size: 0.7em;
+    margin-top: 0.35em;
+  }
+}
+
+/* ---------- Headings ---------- */
+
+.reveal h1,
+.reveal h2,
+.reveal h3,
+.reveal h4 {
+  color: $presentation-heading-color;
+  text-transform: none;
+  letter-spacing: $presentation-heading-letter-spacing;
+}
+
+.reveal h2 {
+  border-bottom: 3px solid $teal-700;
+  padding-bottom: 0.22em;
+  margin-bottom: 0.65em;
+}
+
+.reveal h3 {
+  color: $teal-900;
+  font-weight: 600;
+  margin-top: 0.55em;
+  margin-bottom: 0.4em;
+}
+
+.reveal .slide.small {
+  font-size: 0.88em;
+
+  h2 {
+    font-size: 1.55em;
+  }
+
+  h3 {
+    font-size: 1.12em;
+  }
+}
+
+/* ---------- Text & lists ---------- */
+
+.reveal p,
+.reveal li {
+  line-height: 1.35;
+}
+
+.reveal ul,
+.reveal ol {
+  margin-bottom: 0.55em;
+}
+
+.reveal li {
+  margin-bottom: 0.22em;
+}
+
+.reveal strong {
+  color: $slate-900;
+  font-weight: 700;
+}
+
+.reveal em {
+  font-style: italic;
+}
+
+.reveal a {
+  color: $link-color;
+  text-decoration: none;
+  border-bottom: 1px solid rgba($teal-700, 0.35);
+  transition: color 0.15s ease, border-color 0.15s ease;
+
+  &:hover {
+    color: $link-color-hover;
+    border-bottom-color: $link-color-hover;
+  }
+}
+
+/* ---------- Blockquotes ---------- */
+
+.reveal blockquote {
+  border-left: 4px solid $teal-700;
+  background: linear-gradient(90deg, $teal-50 0%, rgba($teal-50, 0.35) 100%);
+  padding: 0.55em 0.9em;
+  margin: 0.7em 0;
+  color: $teal-900;
+  font-size: 0.92em;
+  border-radius: 0 6px 6px 0;
+  box-shadow: none;
+  width: auto;
+}
+
+.reveal blockquote p {
+  margin: 0.15em 0;
+}
+
+/* ---------- Tables ---------- */
+
+.reveal table {
+  font-size: 0.72em;
+  margin: 0.5em auto;
+  border-collapse: collapse;
+  width: auto;
+  max-width: 100%;
+}
+
+.reveal table th {
+  background: $slate-900;
+  color: #fff;
+  font-weight: 600;
+  border-bottom: 2px solid $slate-900;
+}
+
+.reveal table td,
+.reveal table th {
+  padding: 0.4em 0.7em;
+  border-color: $slate-300;
+  text-align: left;
+}
+
+.reveal table td {
+  background: #fff;
+}
+
+.reveal table tr.even td {
+  background: $slate-50;
+}
+
+.reveal table tr:hover td {
+  background: $teal-50;
+}
+
+.reveal table caption {
+  color: $slate-500;
+  font-size: 0.9em;
+  margin-bottom: 0.35em;
+}
+
+/* ---------- Code ---------- */
+
+.reveal pre {
+  font-size: 0.72em;
+  margin: 0.55em 0;
+  box-shadow: none;
+  border: 1px solid $slate-200;
+  border-radius: 8px;
+  background: $code-block-bg;
+}
+
+.reveal pre code {
+  padding: 0.7em 0.9em;
+  background: transparent;
+  color: $slate-900;
+  max-height: none;
+}
+
+.reveal code {
+  color: $code-color;
+  background: $slate-100;
+  border-radius: 4px;
+  padding: 0.08em 0.28em;
+  font-size: 0.9em;
+}
+
+.reveal pre code {
+  padding: 0.7em 0.9em;
+  background: transparent;
+  border-radius: 0;
+}
+
+.reveal .sourceCode {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* ---------- Images & columns ---------- */
+
+.reveal .slides section img {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  margin: 0.15em 0;
+}
+
+.reveal .columns {
+  display: flex;
+  align-items: flex-start;
+}
+
+.reveal .column {
+  padding: 0 0.35em;
+}
+
+.reveal .column img {
+  max-height: 520px;
+  object-fit: contain;
+}
+
+/* ---------- Footer & slide number ---------- */
+
+.reveal .slide-number {
+  color: $slate-500;
+  font-size: 0.5em;
+  background: transparent;
+  right: 12px;
+  bottom: 10px;
+}
+
+.reveal .footer {
+  color: $slate-500;
+  font-size: 0.42em;
+  bottom: 10px;
+}
+
+/* ---------- Utility classes ---------- */
+
+.reveal .small {
+  font-size: 0.8em;
+}
+
+.reveal .smaller {
+  font-size: 0.7em;
+}
+
+.reveal .muted {
+  color: $slate-500;
+}
+
+.reveal .highlight {
+  color: $teal-700;
+  font-weight: 700;
+}
+
+.reveal .bad {
+  color: $red-700;
+  font-weight: 700;
+}
+
+.reveal .good {
+  color: $green-700;
+  font-weight: 700;
+}
+
+.reveal .callout-box {
+  background: $teal-50;
+  border: 1px solid rgba($teal-700, 0.25);
+  border-left: 4px solid $teal-700;
+  border-radius: 0 8px 8px 0;
+  padding: 0.55em 0.85em;
+  margin: 0.6em 0;
+  color: $teal-900;
+}
+
+.reveal .kpi {
+  display: inline-block;
+  background: $slate-900;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.95em;
+  padding: 0.15em 0.55em;
+  border-radius: 6px;
+  letter-spacing: -0.01em;
+}
+
+.reveal .kpi-teal {
+  background: $teal-700;
+}

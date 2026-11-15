@@ -1,6 +1,13 @@
 # Données (ne jamais push les fichiers de données)
 data/*
 !data/.gitkeep
+# ... sauf les splits et les données processed
+!data/splits_snp_3way/
+!data/splits_snp_3way/**
+!data/splits_all_antibiotics/
+!data/splits_all_antibiotics/**
+!data/processed/
+!data/processed/**
 
 # Python / Jupyter
 __pycache__/
@@ -14,6 +21,24 @@ venv/
 ENV/
 env/
 
+# Artefacts de compilation LaTeX (régénérés par pdflatex)
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.bbl
+*.blg
+*.nav
+*.snm
+*.vrb
+
+# Rendus générés (slides / rapports)
+slides/presentation.html
+slides/*_files/
+
 # Fichiers système / OS
 .DS_Store
 Thumbs.db
@@ -21,3 +46,4 @@ Thumbs.db
 # IDEs
 .vscode/
 .idea/
+
