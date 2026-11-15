@@ -3,8 +3,6 @@
 1. **Ciprofloxacine** — cas d'école, toujours modélisé sur le pangénome complet enrichi de 198 SNP QRDR (jamais sur les SNP seuls) ;
 2. **48 antibiotiques** — extension multi-phénotypes, avec sélection des antibiotiques exploitables puis exploration détaillée d'un antibiotique.
 
-L'objectif n'est pas seulement d'obtenir un bon score, mais un modèle **utile, interprétable et honnêtement évalué** : split groupé pour éviter la fuite de clones, métriques adaptées au déséquilibre, **régularisation Lasso (L1)** pour sélectionner les variables, seuil choisi sur la validation, et lecture biologique des variables.
-
 > **Source de vérité.** Les résultats de modélisation de ce README sont extraits des sorties des notebooks `notebooks/ciprofloxacine_exploration.ipynb` et `notebooks/all_antibiotic.ipynb` ; les comptages de données ont été vérifiés directement dans les fichiers Parquet. La présentation `slides/presentation_antibiotiques.qmd` suit le cas de référence ciprofloxacine (notebook dédié) puis le passage à l'échelle 48 antibiotiques (`all_antibiotic.ipynb`) ; en cas de doute, les notebooks font foi.
 
 ---
@@ -209,7 +207,7 @@ Les métriques retenues sont donc :
 
 ### 5.3 Choix du seuil
 
-Le seuil est choisi pour maximiser le **F1 sur la validation**, jamais sur le test, puis appliqué au test. 
+Le seuil est choisi pour maximiser le **F1 sur la validation**, jamais sur le test, puis appliqué au test.
 
 Pour la Lasso, le paramètre `C` est également choisi sur la validation (PR-AUC maximale).
 
