@@ -1,0 +1,178 @@
+%=====================================================================
+%  CV — Alexandre Aitour (version Machine Learning / Deep Learning)
+%  Compilateur Overleaf : pdfLaTeX (par défaut)
+%=====================================================================
+\documentclass[10pt,a4paper]{article}
+
+%---------------- Langue & encodage ----------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\frenchsetup{StandardLists=true} % évite le conflit babel-french / enumitem
+
+%---------------- Police ----------------
+\usepackage[default]{sourcesanspro}
+
+%---------------- Mise en page ----------------
+\usepackage[a4paper, left=1.4cm, right=1.4cm, top=0.9cm, bottom=0.8cm]{geometry}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{tabularx}
+\usepackage{fontawesome5}
+\usepackage[hidelinks]{hyperref}
+
+\hypersetup{
+  pdftitle={CV - Alexandre Aitour},
+  pdfauthor={Alexandre Aitour}
+}
+
+\definecolor{accent}{HTML}{1F3A5F}
+\definecolor{soft}{HTML}{555555}
+
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+
+%---------------- Titres de section ----------------
+\titleformat{\section}
+  {\large\bfseries\color{accent}}
+  {}{0em}
+  {\MakeUppercase}
+  [\vspace{-5pt}{\color{accent}\rule{\linewidth}{0.6pt}}]
+\titlespacing*{\section}{0pt}{7pt}{4pt}
+
+%---------------- Listes ----------------
+\setlist[itemize]{
+  leftmargin=1.1em, label={\color{accent}\textbullet},
+  itemsep=1.5pt, parsep=0pt, topsep=2pt, partopsep=0pt
+}
+
+%---------------- Commandes personnalisées ----------------
+% \experience{Poste}{Dates}{Entreprise}{Lieu}
+\newcommand{\experience}[4]{%
+  {\bfseries #1} \hfill {\small\color{soft} #2}\\
+  {\itshape #3} \hfill {\small\itshape\color{soft} #4}\par
+  \vspace{1pt}%
+}
+
+% \projet{Titre}{Outils}{Date}
+\newcommand{\projet}[3]{%
+  {\bfseries #1} {\small\itshape\color{soft} -- #2} \hfill {\small\color{soft} #3}\par
+  \vspace{1pt}%
+}
+
+% \formation{Diplôme}{Dates}{École ; matières}{Lieu}
+\newcommand{\formation}[4]{%
+  {\bfseries #1} \hfill {\small\color{soft} #2}\\
+  {\small #3} \hfill {\small\itshape\color{soft} #4}\par
+  \vspace{2pt}%
+}
+
+\newcommand{\sep}{\hspace{0.7em}{\color{soft}|}\hspace{0.7em}}
+
+%=====================================================================
+\begin{document}
+
+%---------------- En-tête ----------------
+\begin{center}
+  {\fontsize{24}{28}\selectfont\bfseries Alexandre Aitour}\\[4pt]
+  {\color{accent}\bfseries Élève ingénieur en data science, machine learning et deep learning \sep
+   Stage de fin d'études de 6 mois, mars à août 2027}\\[5pt]
+  {\small
+    \faPhone\ +33 7 83 24 11 99 \sep
+    \faEnvelope\ \href{mailto:a.aaitour@gmail.com}{a.aaitour@gmail.com} \sep
+    \faLinkedin\ \href{https://www.linkedin.com/in/alexandre-aitour-a97168268/}{linkedin.com/in/alexandre-aitour} \sep
+    % \faGithub\ \href{https://github.com/TON-PSEUDO}{github.com/TON-PSEUDO} \sep
+    \faMapMarker*\ Paris / Rennes, France}
+\end{center}
+
+%---------------- Profil ----------------
+\section{Profil}
+Élève ingénieur en 3\textsuperscript{e} année spécialisé en data science, je construis des modèles de \textbf{machine learning}
+et de \textbf{deep learning} (scikit-learn, XGBoost, PyTorch) sur des données en \textbf{grande dimension}. Ma démarche :
+choisir le bon critère d'évaluation, comprendre pourquoi un modèle échoue, puis l'expliquer. Je recherche un stage en
+\textbf{Machine Learning / Deep Learning}.
+
+%---------------- Projets ----------------
+\section{Projets machine learning \& deep learning}
+
+\projet{Prédiction de la résistance aux antibiotiques à partir du génome}{Python, scikit-learn, XGBoost, PyTorch, SHAP}{2026, équipe de 3}
+% Si le dépôt GitHub est public, décommente la ligne suivante :
+% {\small\color{soft}\faGithub\ \href{https://github.com/TON-PSEUDO/Projet_ML_and_DL}{github.com/TON-PSEUDO/Projet\_ML\_and\_DL}}\par
+\begin{itemize}
+  \item \textbf{Problème :} prédire la résistance d'\textit{E.\,coli} à la ciprofloxacine à partir de \textbf{20\,929 mutations (SNP)}
+        sur \textbf{5\,935 génomes} (plus de variables que d'individus, classes déséquilibrées) ; \textbf{PR-AUC} choisie comme critère plutôt que l'accuracy.
+  \item \textbf{Machine learning :} comparé régression logistique (dont Lasso), Random Forest et \textbf{XGBoost} (PR-AUC de validation
+        0,97 contre 0,55 pour la régression logistique) ; \textbf{seuil de décision optimisé} et \textbf{calibration} vérifiée.
+  \item \textbf{Deep learning (PyTorch) :} conçu et entraîné des \textbf{réseaux de neurones (MLP)} (BatchNorm, Dropout, AdamW,
+        perte pondérée, \textbf{early stopping}). Diagnostiqué leur \textbf{surapprentissage} sur les 20\,929 SNP (PR-AUC de test 0,73),
+        puis réduit l'entrée aux \textbf{50 SNP les plus importants selon SHAP} : le réseau rejoint XGBoost avec \textbf{400 fois moins de variables}.
+  \item \textbf{Interprétabilité :} prédictions expliquées avec \textbf{SHAP} (importance des SNP, analyse des faux positifs et négatifs).
+\end{itemize}
+\vspace{2pt}
+
+\projet{Détection d'articles scientifiques frauduleux}{R, modèle linéaire généralisé}{2026}
+\begin{itemize}
+  \item \textbf{Régression logistique} sur 4\,403 articles en grande dimension, évaluée par \textbf{validation croisée} à 10 segments.
+\end{itemize}
+\vspace{2pt}
+
+\projet{Application web de visualisation de données, en équipe de 4}{R Shiny, Git, GitHub}{2026}
+
+%---------------- Expérience ----------------
+\section{Expérience professionnelle}
+
+\experience{Stagiaire R\&D Innovation, analyse statistique et données expérimentales}{Avril -- Août 2026}
+           {Puratos (siège mondial)}{Bruxelles, Belgique}
+\begin{itemize}
+  \item Orienté une décision de sourcing en hiérarchisant une vingtaine de farines par \textbf{ANOVA et test de Tukey}.
+  \item Réduit le traitement des exports de plusieurs heures à quelques secondes (\textbf{5 outils de nettoyage des données}, VBA).
+\end{itemize}
+\vspace{2pt}
+
+\experience{Fondateur, marque e-commerce de montres personnalisées}{Depuis janvier 2025}
+           {SMODPARIS (boutique Shopify)}{Paris, France}
+\begin{itemize}
+  \item Piloté l'acquisition (\textbf{Meta Ads}, TikTok) et vendu \textbf{40 à 50 montres} par an (\textbf{12\,k€ de CA}), en gérant seul tout le cycle.
+\end{itemize}
+\vspace{2pt}
+
+\experience{Stagiaire, outils de pilotage de la production}{Janvier -- Février 2025}
+           {Atelier du Chocolat}{Bayonne, France}
+\vspace{2pt}
+
+\experience{Stagiaire, détection d'anomalies et automatisation de processus comptables}{Juin -- Août 2024}
+           {Cameca (groupe Ametek)}{Gennevilliers, France}
+\begin{itemize}
+  \item Accéléré la résolution des transactions litigieuses via des \textbf{alertes automatiques de détection} (VBA).
+\end{itemize}
+
+%---------------- Formation ----------------
+\section{Formation}
+
+\formation{Diplôme d'ingénieur, spécialisation Data science (3\textsuperscript{e} année)}{2026 -- 2027}
+          {\textit{Institut Agro Rennes-Angers} ; deep learning (PyTorch), statistical learning, statistique bayésienne, big data}
+          {Rennes, France}
+
+\formation{Formation d'ingénieur en sciences du vivant et agroalimentaire}{2024 -- 2026}
+          {\textit{Oniris VetAgroBio} ; statistique inférentielle et tests d'hypothèses, ANOVA, gestion}
+          {Nantes, France}
+
+\formation{Classe préparatoire BCPST (mathématiques, physique, biologie)}{2021 -- 2023}
+          {\textit{Lycée Chaptal} ; préparation aux concours des écoles d'ingénieurs}
+          {Paris, France}
+
+%---------------- Compétences ----------------
+\section{Compétences}
+\vspace{-2pt}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}p{3.2cm}X@{}}
+  Deep learning & PyTorch : réseaux de neurones (MLP), BatchNorm, Dropout, AdamW, early stopping \\
+  Machine learning & Régression logistique (Lasso), Random Forest, XGBoost, SHAP, validation croisée, calibration \\
+  Statistique & GLM, statistique bayésienne, tests d'hypothèses, ANOVA, ACP, grande dimension \\
+  Outils & Python (NumPy, pandas, scikit-learn), R (Shiny), SQL, VBA, Git, GitHub, Excel avancé, Meta Ads \\
+  Langues & Français (langue maternelle), anglais courant (TOEIC 860/990), allemand (A2) \\
+  Centres d'intérêt & Judo (plus de 5 ans), MMA, football ; histoire et géopolitique \\
+\end{tabularx}
+
+\end{document}
