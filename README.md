@@ -5,7 +5,7 @@
 
 L'objectif n'est pas seulement d'obtenir un bon score, mais un modèle **utile, interprétable et honnêtement évalué** : split groupé pour éviter la fuite de clones, métriques adaptées au déséquilibre, **régularisation Lasso (L1)** pour sélectionner les variables, seuil choisi sur la validation, et lecture biologique des variables.
 
-> **Source de vérité.** Les résultats de modélisation de ce README sont extraits des sorties des notebooks `notebooks/ciprofloxacine_exploration.ipynb` et `notebooks/all_antibiotic.ipynb` ; les comptages de données ont été vérifiés directement dans les fichiers Parquet. La présentation `slides/presentation_antibiotiques.qmd` est alignée sur le notebook 48 antibiotiques. En revanche, `slides/presentation_ml.qmd` contient encore des chiffres cipro d'une version antérieure : en cas de doute, les notebooks font foi.
+> **Source de vérité.** Les résultats de modélisation de ce README sont extraits des sorties des notebooks `notebooks/ciprofloxacine_exploration.ipynb` et `notebooks/all_antibiotic.ipynb` ; les comptages de données ont été vérifiés directement dans les fichiers Parquet. La présentation `slides/presentation_antibiotiques.qmd` suit le cas de référence ciprofloxacine (notebook dédié) puis le passage à l'échelle 48 antibiotiques (`all_antibiotic.ipynb`) ; en cas de doute, les notebooks font foi.
 
 ---
 
@@ -299,9 +299,8 @@ Projet_ML_DL/
 │   ├── make_3way_splits_all_snp.py           # split 48 ATB groupé par lignée
 │   └── data_loader.py                        # utilitaire historique, non utilisé par les notebooks
 ├── slides/
-│   ├── presentation_ml.qmd                   # présentation cipro (chiffres anciens)
-│   ├── presentation_antibiotiques.qmd        # présentation 48 antibiotiques
-│   ├── images/
+│   ├── presentation_antibiotiques.qmd        # cas cipro + 48 antibiotiques
+│   ├── images/                               # figures, dont images/cipro/
 │   └── custom.scss
 └── README.md
 ```
