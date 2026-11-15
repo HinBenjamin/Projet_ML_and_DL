@@ -116,7 +116,7 @@ Sans split groupé, les scores sont gonflés par la proximité génétique. Le s
 - **14 ATB élargis**
 - **34 ATB exclus**
 
-> La moitié du jeu est inutilisable, non par manque de modèle, mais par manque de données.
+Seuls **14 ATB sur 48** sont exploitables : c'est un manque de **données**, pas de modèle.
 :::
 :::
 
@@ -136,7 +136,7 @@ Le graphique montre les 20 ATB les plus testés. Les barres bleu-vert sont les 9
 
 ### Exemples
 
-- **Trop peu de testés** : cefoxitine (74), ceftriaxone (46), lévofloxacine (26).
+- **Trop peu de testés** : cefoxitine (74), ceftriaxone (46), lévofloxacine (28).
 - **Quasi monomorphes** : méropénème (0,6 % de R), tigécycline (0,0 %), pipéracilline/tazobactam (3,6 %).
 
 ### Le point important
@@ -208,13 +208,8 @@ C'est le coeur de la restructuration du notebook : le choix de l'ATB est isolé 
 ### Métriques
 
 - **PR-AUC** : métrique principale, adaptée aux classes rares.
-- **F1**, **recall résistant**, **balanced accuracy**, ROC-AUC.
-- **Calibration** : les probabilités sont-elles interprétables ?
-
-### Seuil de décision
-
-- Comparaison des modèles à **0,5**.
-- Puis seuil qui **maximise le F1 sur la validation**, appliqué **une seule fois** au test.
+- **F1**, **recall résistant**, **balanced accuracy**, **calibration**.
+- Comparaison à **0,5**, puis seuil **F1 max sur la validation**, appliqué une fois au test.
 
 ::: {.notes}
 Avec 11 % de résistants, un modèle qui prédit toujours "sensible" atteint déjà 89 % d'accuracy. D'où le choix du PR-AUC et du recall. Le seuil est choisi sur la validation, jamais sur le test : c'est la règle du jeu.
@@ -252,14 +247,11 @@ Le Random Forest illustre le piège du déséquilibre : une précision de 0,90 p
 ::: {.column width="40%"}
 ### Le parcours
 
-- `C = 0,001` : tous les coefficients à zéro → modèle constant, PR-AUC = hasard.
-- `C = 0,005` : 1 à 2 variables, PR-AUC 0,593.
+- `C = 0,001` : coefficients tous nuls → PR-AUC = hasard.
 - **`C = 0,01` : 21 variables, PR-AUC 0,662** ← retenu.
-- `C ≥ 0,05` : des centaines puis des milliers de variables, PR-AUC **baisse** (0,617 → 0,543).
+- `C ≥ 0,05` : des centaines de variables (≈ 1 400 au maximum), PR-AUC **baisse** (0,617 → 0,543).
 
-### Message
-
-> Le signal est **concentré** : une vingtaine de variables sur 34 744 suffisent. Ajouter des variables ajoute du bruit et des marqueurs de lignage.
+> **21 variables sur 34 744** suffisent. Au-delà, on ajoute du bruit et des marqueurs de lignage.
 :::
 :::
 
@@ -360,7 +352,7 @@ La calibration ne change pas le classement des individus, donc pas le PR-AUC. El
 ### Lecture
 
 - **54 %** des résistants détectés ; **33 résistants manqués**.
-- Précision 72 % : un tiers des alertes sont des faux positifs.
+- Précision 72 % : 28 % des alertes sont des faux positifs.
 - PR-AUC **0,665** contre **0,110** au hasard → le signal est réel, mais loin d'être suffisant pour décider seul.
 
 ::: {.notes}
@@ -391,8 +383,7 @@ Le graphique SHAP donne la contribution de chaque variable pour chaque génome. 
 
 - Score `f(x) = −0,93` → probabilité **0,28**, au-dessus du seuil 0,173.
 - `parC_Ser80Ile` (+1,02) et `gyrA_Ser83Leu` (+0,92) suffisent.
-- Le génome est un clone **multirésistant** (fluoroquinolones), mais sensible à cefuroxime.
-- Le modèle infère une résistance par **co-résistance**, pas par mécanisme β-lactamine.
+- Clone **multirésistant** (fluoroquinolones), mais sensible à cefuroxime.
 :::
 :::
 
@@ -470,8 +461,7 @@ Le point frappant : le meilleur epoch est le premier. Le réseau mémorise immé
 
 ### Lecture
 
-- Mieux que le MLP complet (**moins de bruit**), toujours derrière XGBoost et L1.
-- Le réseau ne transforme pas un problème de features en problème d'architecture.
+- Mieux que le MLP complet (**moins de bruit**), toujours derrière XGBoost et L1 en PR-AUC.
 :::
 :::
 
